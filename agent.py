@@ -8,20 +8,20 @@ from prompts import SYSTEM_PROMPT, build_user_prompt #Importing file
 
 #Loading .env from the same directory as this file
 script_dir = Path(__file__).parent
-load_dotenv(dotenv_path=script_dir / ".env")
+load_dotenv(script_dir / ".env")
 
 #Azure OpenAI client initalization
 client = AzureOpenAI(
-    azure_endpoint=os.gentenv("AZURE_FOUNDRY_ENDPOINT"),
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_version="2024-10-21"
+    api_version="2024-02-15-preview"
 )
 
 #Deployment from .env
 DEPLOYMENT_NAME = os.getenv("AZURE_DEPLOYMENT_NAME")
 
 #Agent Initialization
-def study_and_plan_agent(user_id: str, course_id: str, user_input: str, goal:str) -> dict:
+def study_and_plan_agent(user_id: str, course_id: str, goal:str) -> dict:
     """
     This is the core agent logic. 
     Takes a goal + context, calls the Azure OpenAI API, and returns a structured study plan/guide
@@ -34,9 +34,9 @@ def study_and_plan_agent(user_id: str, course_id: str, user_input: str, goal:str
     user_prompt = build_user_prompt(goal, course_context)
 
     #Call Azure OpenAI -> Chat Completions
-    respose = client.chat.completions.create(
+    response = client.chat.completions.create(
         model=DEPLOYMENT_NAME,
-        message=[
+        messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt}
         ],
