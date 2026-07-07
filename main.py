@@ -1,6 +1,10 @@
 from fastapi import FastAPI, HTTPException 
 from models import StudyPlanRequest, StudyPlanResponse
 from agent import study_and_plan_agent
+from data import get_course_context
+
+#For extensive exception type handling
+from openai import AuthenticationError, RateLimitError, APITimeoutError, APIConnectionError, APIError
 
 app = FastAPI(
     title = "Study Plan Generator API",
@@ -15,10 +19,20 @@ def read_health():
 def get_study_plan(study: StudyPlanRequest):
 
     try:
+        course_context = get_course_context(study.course_id)
+        goal = study.goal.strip() if study.goal else None
+
+        if not course_context:
+            raise HTTPException(status_code=404, detail=f"Course context not found for course_id: {study.course_id}")
+
+        if not goal:
+            raise HTTPException(status_code=400, detail="Missing required field: goal is required.")
+
         result = study_and_plan_agent(
                         user_id = study.user_id,
                         course_id = study.course_id,
-                        goal = study.goal,)
+                        goal = goal,)
+        
         
         return StudyPlanResponse(
             success=True,
@@ -27,5 +41,17 @@ def get_study_plan(study: StudyPlanRequest):
             estimated_hours=result.get("estimated_hours", None)
         )
     
+    except HTTPException:
+        raise 
+    except RateLimitError as e:
+        raise HTTPException(status_code=429, detail=f"Rate limit exceeded: {str(e)}")
+    except AuthenticationError as e:
+        raise HTTPException(status_code=401, detail=f"Authentication error: {str(e)}")
+    except APITimeoutError as e:
+        raise HTTPException(status_code=504, detail=f"API timeout: {str(e)}")
+    except APIConnectionError as e:
+        raise HTTPException(status_code=503, detail=f"API connection error: {str(e)}")
+    except APIError as e:
+        raise HTTPException(status_code=500, detail=f"API error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

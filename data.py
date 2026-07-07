@@ -31,9 +31,11 @@ COURSE_DATA = {
 }
 
 def get_course_context(course_id: str):
-    return COURSE_DATA.get(course_id, {})
-
-
+    try: 
+        return COURSE_DATA.get(course_id, {})
+    except Exception as e:
+        return f"Error retrieving course context for {course_id}: {e}"
+    
 # Verification Test
 if __name__ == "__main__":
     print(get_course_context("CS3354"))
