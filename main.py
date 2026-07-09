@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 import asyncio
 
-from router import route_query
+from ai_router import ai_route_query
 from client import call_agent
 
 app = FastAPI()
@@ -15,7 +15,7 @@ class ChatRequest(BaseModel):
 @app.post("/chat")
 async def chat(request: ChatRequest):
 
-    agents = route_query(request.message)
+    agents = ai_route_query(request.message)
 
     tasks = [
         call_agent(agent, request.message)
