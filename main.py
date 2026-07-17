@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException 
 from models import StudyPlanRequest, StudyPlanResponse
 from agent import study_and_plan_agent
-from data import get_course_context
+from data import get_course_context, course_has_content
 
 #For extensive exception type handling
 from openai import AuthenticationError, RateLimitError, APITimeoutError, APIConnectionError, APIError
@@ -19,19 +19,13 @@ def read_health():
 def get_study_plan(study: StudyPlanRequest):
 
     try:
-        course_context = get_course_context(study.course_id)
-        goal = study.goal.strip() if study.goal else None
-
-        if not course_context:
-            raise HTTPException(status_code=404, detail=f"Course context not found for course_id: {study.course_id}")
-
-        if not goal:
-            raise HTTPException(status_code=400, detail="Missing required field: goal is required.")
+        if not course_has_content(study.course_id):
+            raise HTTPException(status_code=404, detail=f"No content found for course_id: {study.course_id}")
 
         result = study_and_plan_agent(
                         user_id = study.user_id,
                         course_id = study.course_id,
-                        goal = goal,)
+                        goal = study.goal,)
         
         
         return StudyPlanResponse(
