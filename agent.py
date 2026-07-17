@@ -28,7 +28,7 @@ def study_and_plan_agent(user_id: str, course_id: str, goal:str) -> dict:
     """
 
     #Get course context (hardcoded for now)
-    course_context = get_course_context(course_id)
+    course_context = get_course_context(course_id, goal)
 
     #Build the user prompt
     user_prompt = build_user_prompt(goal, course_context)
@@ -53,7 +53,7 @@ def study_and_plan_agent(user_id: str, course_id: str, goal:str) -> dict:
     except json.JSONDecodeError:
         parsed_response = {
             "study_plan": [raw_text],
-            "focus_areas": [],
+            "focus_topics": [],
             "estimated_hours": None,
         }
     

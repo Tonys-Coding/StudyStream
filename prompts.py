@@ -1,4 +1,4 @@
-
+from data import get_course_context
 
 SYSTEM_PROMPT = """
 You are a professional AI study assistant for a university course. 
@@ -29,19 +29,15 @@ def build_user_prompt(goal: str, course_context: dict) -> str:
     Constructs the user prompt for the AI model based on the
     user's goal and the course context. 
     """
-
-    course_name = course_context.get("name", "this course")
-    topics = ", ".join(course_context.get("topics", []))
-    exams = course_context.get("upcoming_exams", [])
+    chunks = course_context.get("content_chunks", [])
     
-    exam_info = ""
-    if exams:
-        exam_names = ", ".join([e["name"] for e in exams])
-        exam_info = f"\nUpcoming exams: {exam_names}"
+    if chunks: 
+      material_block = "\n\n---\n\n".join(chunks)
+    else:
+      material_block = "No specific course material was found for this course."
 
-    return f"""Student goal: {goal}
+    return f"""Student goal: {goal} 
 
-Course: {course_name}
-Available topics: {topics}{exam_info}
-
-Generate a personalized study plan for this student."""
+    Relevant course material:
+    {material_block} 
+    Generate a personalized study plan for this student based on the material above."""
