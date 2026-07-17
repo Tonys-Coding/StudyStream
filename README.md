@@ -1,253 +1,96 @@
-# AI Classroom Assistant - Prototype v1
+# Assessment Agent - Development Branch
 
 ## Overview
 
-This branch (`prototype-v1`) contains the first integrated version of the AI Classroom Assistant project.
+This branch is dedicated to the development of the **Assessment Agent** for the AI Classroom Assistant project.
 
-The goal of this prototype is to test the communication between different agents using an orchestrator-based architecture.
+The purpose of this branch is to build and test the Assessment Agent independently before integrating it into the shared project.
 
-At this point, we have implemented:
-
-* Orchestrator Agent
-* Study Agent communication
-
-The FAQ Agent and Assessment Agent folders are included, but their integration with the Orchestrator will be added in future updates.
+This branch was originally created from the `main` branch and will later be updated with changes from the `prototype-v1` branch. This mirrors the workflow that each team member will follow as the project evolves.
 
 ---
 
-## Current Workflow
+## Goal
 
-The current workflow is:
+The Assessment Agent is responsible for generating quizzes and assessments based on a student's course and learning goals.
 
-```
-User Request
-      |
-      v
-Orchestrator Agent (Port 8001)
-      |
-      v
-Study Agent (Port 8003)
-      |
-      v
-Response returned to Orchestrator
-      |
-      v
-User receives response
-```
-
-The Orchestrator is responsible for receiving the user's request and deciding which agent should handle it.
-
-Currently, study-related requests are routed to the Study Agent.
+For the first prototype, the implementation will be intentionally simple and use hard-coded data where appropriate. The focus is on building the agent architecture and integrating it with the Orchestrator, rather than creating a complete assessment system.
 
 ---
 
-## Example Request
+## Planned Features
 
-The user sends the request to the Orchestrator:
+The first version of the Assessment Agent will:
 
-Endpoint:
+* Accept requests from the Orchestrator
+* Generate multiple-choice quiz questions using Azure OpenAI
+* Return quiz questions in a structured JSON format
+* Handle basic error checking and API responses
 
-```
-POST http://localhost:8001/chat
-```
+---
 
-Example JSON:
+## Planned API
+
+Example request:
 
 ```json
 {
-  "message": "Prepare for my CS3354 midterm",
   "user_id": "123",
-  "course_id": "CS3354"
+  "course_id": "CS3354",
+  "topic": "Requirements Engineering",
+  "num_questions": 5
 }
 ```
 
-The Orchestrator receives this request, identifies that it is a study request, sends it to the Study Agent, and returns the Study Agent response back to the user.
+Example response:
 
----
-
-# Project Structure
-
-```
-AI-Classroom-Assistant/
-
-├── orchestrator/
-│   ├── main.py
-│   ├── router.py
-│   └── agents.py
-│
-├── study-agent/
-│   ├── main.py
-│   ├── agent.py
-│   ├── models.py
-│   ├── prompts.py
-│   └── data.py
-│
-├── faq-agent/
-│   └── main.py
-│
-├── assessment-agent/
-│   └── main.py
-│
-├── shared/
-│   └── requirements.txt
-│
-├── .env
-├── start.sh
-└── test_connection.py
+```json
+{
+  "success": true,
+  "questions": [
+    {
+      "question": "What is a functional requirement?",
+      "choices": [
+        "Option A",
+        "Option B",
+        "Option C",
+        "Option D"
+      ],
+      "answer": "Option A"
+    }
+  ]
+}
 ```
 
 ---
 
-# File Description
+## Expected Project Structure
 
-## orchestrator/
+```text
+assessment-agent/
 
-The Orchestrator is the main entry point for user requests.
-
-### main.py
-
-* Creates the FastAPI application
-* Provides the `/chat` endpoint
-* Receives user requests
-* Sends requests to the correct agent
-
-### router.py
-
-Contains the routing logic.
-
-For now:
-
-* Study request → Study Agent
-
-Future:
-
-* Quiz request → Assessment Agent
-* General questions → FAQ Agent
-
-### agents.py
-
-Contains functions used by the Orchestrator to communicate with other agents.
-
----
-
-## study-agent/
-
-The Study Agent generates study plans based on the user's goal and course information.
-
-### main.py
-
-Runs the Study Agent API.
-
-It receives requests from the Orchestrator and returns the generated study plan.
-
-### agent.py
-
-Contains the main AI logic:
-
-* Loads environment variables
-* Creates Azure OpenAI client
-* Builds prompts
-* Calls the LLM
-* Processes the response
-
-### prompts.py
-
-Contains the system prompt and user prompt templates used by the AI model.
-
-### data.py
-
-Currently provides course information for testing.
-
-The data is hard-coded at this stage. Later it can be connected to a database or RAG service.
-
-### models.py
-
-Contains request and response data models using Pydantic.
-
----
-
-# Shared Folder
-
-## shared/requirements.txt
-
-Contains common Python packages needed by the agents.
-
-Current dependencies:
-
-```
-fastapi
-uvicorn
-openai
-python-dotenv
-pydantic
-requests
-```
-
-If an agent needs a package that is specific only to that agent, it can have its own requirements file later.
-
----
-
-# Environment File
-
-## .env
-
-Stores configuration values such as Azure OpenAI credentials.
-
-Example:
-
-```
-AZURE_OPENAI_ENDPOINT=
-AZURE_OPENAI_API_KEY=
-AZURE_DEPLOYMENT_NAME=
-```
-
-The `.env` file should stay local and should not be pushed to GitHub.
-
----
-
-# Running the Project
-
-The `start.sh` file starts all agents together.
-
-Current ports:
-
-| Service          | Port |
-| ---------------- | ---- |
-| FAQ Agent        | 8000 |
-| Orchestrator     | 8001 |
-| Assessment Agent | 8002 |
-| Study Agent      | 8003 |
-
-Run:
-
-```
-./start.sh
+├── main.py          # FastAPI application and API endpoints
+├── agent.py         # Main Assessment Agent logic
+├── models.py        # Request and response models
+├── prompts.py       # Prompt templates
+└── data.py          # Temporary hard-coded course data
 ```
 
 ---
 
-# Testing
+## Development Notes
 
-`test_connection.py` can be used to test communication between services and verify that the APIs are running correctly.
+This branch is intended for Assessment Agent development only.
+
+As the project progresses, this branch will be updated with changes from the `prototype-v1` integration branch so that it stays compatible with the latest project architecture.
+
+After the Assessment Agent is complete and tested, it can be merged back into the integration branch and eventually into `main`.
 
 ---
 
-# Current Status
+## Current Status
 
-Implemented:
-
-✅ Orchestrator service
-✅ Study Agent service
-✅ Communication between Orchestrator and Study Agent
-✅ Basic routing logic
-
-Not implemented yet:
-
-⬜ FAQ Agent integration
-⬜ Assessment Agent integration
-⬜ Database integration
-⬜ RAG service integration
-⬜ Frontend interface
-
-This branch represents the first working prototype of the multi-agent architecture.
-
+* ✅ Branch created
+* ⏳ Assessment Agent implementation in progress
+* ⏳ Integration with Orchestrator planned
+* ⏳ Testing and documentation to be added
