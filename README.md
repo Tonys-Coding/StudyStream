@@ -55,6 +55,14 @@ uvicorn main:app --reload
 }
 ```
 
+## Running
+
+```bash
+uvicorn main:app --reload --port 8003
+```
+
+Interactive API docs available at `http://127.0.0.1:8003/docs`
+
 ## Example Response
 
 ```json
