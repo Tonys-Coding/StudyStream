@@ -1,35 +1,70 @@
-# Assessment Agent - Development Branch
+# Assessment Agent
 
 ## Overview
 
-This branch is dedicated to the development of the **Assessment Agent** for the AI Classroom Assistant project.
+This branch contains the development of the **Assessment Agent** for the AI Classroom Assistant project.
 
-The purpose of this branch is to build and test the Assessment Agent independently before integrating it into the shared project.
+The goal of this agent is to receive a request from a user, use the provided course information, communicate with Azure OpenAI, and generate assessment questions.
 
-This branch was originally created from the `main` branch and will later be updated with changes from the `prototype-v1` branch. This mirrors the workflow that each team member will follow as the project evolves.
-
----
-
-## Goal
-
-The Assessment Agent is responsible for generating quizzes and assessments based on a student's course and learning goals.
-
-For the first prototype, the implementation will be intentionally simple and use hard-coded data where appropriate. The focus is on building the agent architecture and integrating it with the Orchestrator, rather than creating a complete assessment system.
+For this first prototype, the agent uses a simple hard-coded course context. The purpose is to make sure the basic workflow is working correctly before adding more advanced features.
 
 ---
 
-## Planned Features
+## Current Status
 
-The first version of the Assessment Agent will:
+The Assessment Agent is currently able to:
 
-* Accept requests from the Orchestrator
-* Generate multiple-choice quiz questions using Azure OpenAI
-* Return quiz questions in a structured JSON format
-* Handle basic error checking and API responses
+* Receive a quiz generation request through a FastAPI API
+* Read basic course information from `data.py`
+* Create a prompt using the course information and user request
+* Communicate with Azure OpenAI
+* Generate multiple-choice questions
+* Return the generated questions in a structured format
+
+At this stage, the agent does **not** use RAG yet. The connection with the RAG system will be added in a future version so the agent can use actual course materials, such as lecture notes, slides, and other class documents, when creating assessments.
 
 ---
 
-## Planned API
+## How It Works
+
+The current workflow is:
+
+```text
+User Request
+      |
+      v
+Assessment Agent API
+      |
+      v
+Course Information (data.py)
+      |
+      v
+Prompt Creation (prompts.py)
+      |
+      v
+Azure OpenAI
+      |
+      v
+Generated Quiz Response
+```
+
+Currently, `data.py` contains simple course information used for testing. The Assessment Agent uses this information to create a prompt and sends it to Azure OpenAI. The response from Azure OpenAI is then processed and returned to the user.
+
+Later, `data.py` will be replaced or extended with a connection to the RAG system so the agent can generate questions based on real course content.
+
+---
+
+## API
+
+The Assessment Agent runs on port **8002**.
+
+### Generate Quiz
+
+Endpoint:
+
+```
+POST /generate_quiz
+```
 
 Example request:
 
@@ -38,7 +73,7 @@ Example request:
   "user_id": "123",
   "course_id": "CS3354",
   "topic": "Requirements Engineering",
-  "num_questions": 5
+  "num_questions": 3
 }
 ```
 
@@ -49,14 +84,14 @@ Example response:
   "success": true,
   "questions": [
     {
-      "question": "What is a functional requirement?",
+      "question": "What is the primary goal of requirements engineering?",
       "choices": [
         "Option A",
         "Option B",
         "Option C",
         "Option D"
       ],
-      "answer": "Option A"
+      "answer": "Option B"
     }
   ]
 }
@@ -64,33 +99,76 @@ Example response:
 
 ---
 
-## Expected Project Structure
+## Project Structure
 
-```text
+```
 assessment-agent/
 
-├── main.py          # FastAPI application and API endpoints
-├── agent.py         # Main Assessment Agent logic
-├── models.py        # Request and response models
-├── prompts.py       # Prompt templates
-└── data.py          # Temporary hard-coded course data
+├── main.py
+│   FastAPI application.
+│   Defines the API endpoints and handles requests.
+
+├── agent.py
+│   Main logic for the Assessment Agent.
+│   Handles the course context, creates prompts,
+│   calls Azure OpenAI, and processes the response.
+
+├── models.py
+│   Defines the request and response formats.
+
+├── prompts.py
+│   Contains the prompts used when communicating
+│   with Azure OpenAI.
+
+└── data.py
+    Contains temporary hard-coded course information
+    used for testing.
 ```
 
 ---
 
-## Development Notes
+## Running the Agent
 
-This branch is intended for Assessment Agent development only.
+From the `assessment-agent` folder:
 
-As the project progresses, this branch will be updated with changes from the `prototype-v1` integration branch so that it stays compatible with the latest project architecture.
+```bash
+uvicorn main:app --reload --port 8002
+```
 
-After the Assessment Agent is complete and tested, it can be merged back into the integration branch and eventually into `main`.
+The agent will run at:
+
+```
+http://localhost:8002
+```
+
+Health check:
+
+```
+GET /health
+```
+
+Generate quiz:
+
+```
+POST /generate_quiz
+```
 
 ---
 
-## Current Status
+## Notes
 
-* ✅ Branch created
-* ⏳ Assessment Agent implementation in progress
-* ⏳ Integration with Orchestrator planned
-* ⏳ Testing and documentation to be added
+This is the first prototype version of the Assessment Agent.
+
+The main focus of this branch is to build and test the Assessment Agent independently:
+
+* Receive requests
+* Communicate with Azure OpenAI
+* Generate assessment questions
+* Return responses correctly
+
+The next steps will be improving the agent by connecting it with the RAG system and using real course materials instead of hard-coded information.
+
+The integration between the Assessment Agent and the Orchestrator will be handled separately.
+
+```
+```
