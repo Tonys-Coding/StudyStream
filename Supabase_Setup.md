@@ -24,8 +24,8 @@ Once you have access to the project:
    - **service_role key** — long string, full database access, treat like a password
 
 Add these to your local `.env` file (never commit this file — it should already be in `.gitignore`):
-SUPABASE_URL=https://xxxxx.supabase.co
-SUPABASE_KEY=your_service_role_key_here
+- SUPABASE_URL=https://xxxxx.supabase.co
+- SUPABASE_KEY=your_service_role_key_here
 
 **Important:** use the `service_role` key for backend code (like our agents), not the `anon` key — the `anon` key is 
 meant for client-side/public-facing use and has restricted permissions by design.
