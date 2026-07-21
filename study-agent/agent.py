@@ -7,8 +7,12 @@ from data import get_course_context #Importing file
 from prompts import SYSTEM_PROMPT, build_user_prompt #Importing file
 
 #Loading .env from the same directory as this file
-script_dir = Path(__file__).parent
-load_dotenv(script_dir / ".env")
+project_root = Path(__file__).resolve().parent.parent
+load_dotenv(project_root / ".env")
+
+print("Loaded endpoint:", os.getenv("AZURE_OPENAI_ENDPOINT"))
+print("Loaded deployment:", os.getenv("AZURE_DEPLOYMENT_NAME"))
+print("API key exists:", os.getenv("AZURE_OPENAI_API_KEY") is not None)
 
 #Azure OpenAI client initalization
 client = AzureOpenAI(
@@ -19,6 +23,15 @@ client = AzureOpenAI(
 
 #Deployment from .env
 DEPLOYMENT_NAME = os.getenv("AZURE_DEPLOYMENT_NAME")
+
+if not os.getenv("AZURE_OPENAI_ENDPOINT"):
+    raise ValueError("Missing AZURE_OPENAI_ENDPOINT in .env")
+
+if not os.getenv("AZURE_OPENAI_API_KEY"):
+    raise ValueError("Missing AZURE_OPENAI_API_KEY in .env")
+
+if not DEPLOYMENT_NAME:
+    raise ValueError("Missing AZURE_DEPLOYMENT_NAME in .env")
 
 #Agent Initialization
 def study_and_plan_agent(user_id: str, course_id: str, goal:str) -> dict:

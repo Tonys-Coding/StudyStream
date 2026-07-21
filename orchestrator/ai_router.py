@@ -5,7 +5,9 @@ from dotenv import load_dotenv
 from openai import AzureOpenAI
 
 # Load .env
-load_dotenv(Path(__file__).parent / ".env")
+# load_dotenv(Path(__file__).parent / ".env")
+script_dir = Path(__file__).parent
+load_dotenv(script_dir / ".env")
 
 client = AzureOpenAI(
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),

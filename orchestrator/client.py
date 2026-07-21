@@ -1,6 +1,6 @@
 import httpx
 
-FAQ_AGENT_URL = "http://localhost:8001"
+FAQ_AGENT_URL = "http://localhost:8000"
 QUIZ_AGENT_URL = "http://localhost:8002"
 STUDY_AGENT_URL = "http://localhost:8003"
 
