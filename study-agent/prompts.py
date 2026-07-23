@@ -1,9 +1,9 @@
-
+from data import get_course_context
 
 SYSTEM_PROMPT = """
 You are a professional AI study assistant for a university course. 
 Your job is to generate structured, actionable study plans based on a student's goal 
-and the course context provided. 
+and the retrieved course materials provided.
 Please provide a clear, structured plan that includes a 
 step-by-step study plan, key focus areas,
 estimated hours required, and any additional resources or tips.
@@ -20,7 +20,9 @@ Rules:
 - study_plan steps must be specific and actionable, not vague
 - Order steps from foundational concepts to advanced application
 - focus_topics should be 2-4 topics most relevant to the stated goal
-- estimated_hours should be a realistic float value           
+- estimated_hours should be a realistic float value          
+- Use the retrieved course material as the primary source of information.
+- Do not invent course topics or details that are not supported by the provided material. 
 """
 
 
@@ -29,19 +31,19 @@ def build_user_prompt(goal: str, course_context: dict) -> str:
     Constructs the user prompt for the AI model based on the
     user's goal and the course context. 
     """
-
-    course_name = course_context.get("name", "this course")
-    topics = ", ".join(course_context.get("topics", []))
-    exams = course_context.get("upcoming_exams", [])
+    chunks = course_context.get("content_chunks", [])
     
-    exam_info = ""
-    if exams:
-        exam_names = ", ".join([e["name"] for e in exams])
-        exam_info = f"\nUpcoming exams: {exam_names}"
+    if chunks: 
+      material_block = "\n\n---\n\n".join(chunks)
+    else:
+      material_block = "No specific course material was found for this course."
 
-    return f"""Student goal: {goal}
+    return f"""
+    Student goal: 
+    {goal} 
 
-Course: {course_name}
-Available topics: {topics}{exam_info}
-
-Generate a personalized study plan for this student."""
+    Relevant course material:
+    {material_block} 
+    
+    Generate a personalized study plan for this student based on the material above.
+    """

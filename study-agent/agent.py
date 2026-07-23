@@ -6,38 +6,27 @@ from dotenv import load_dotenv
 from data import get_course_context #Importing file 
 from prompts import SYSTEM_PROMPT, build_user_prompt #Importing file
 
-# Load .env from the project root
-project_root = Path(__file__).resolve().parent.parent
-load_dotenv(project_root / ".env")
+#Loading .env from the same directory as this file
+#script_dir = Path(__file__).parent
+#load_dotenv(script_dir / ".env")
+
+# Load .env file
+# For now, assuming .env is inside the AI-Classroom-Assistant root folder
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
 
-# Read environment variables
-AZURE_OPENAI_ENDPOINT = os.getenv("AZURE_OPENAI_ENDPOINT")
-AZURE_OPENAI_API_KEY = os.getenv("AZURE_OPENAI_API_KEY")
-DEPLOYMENT_NAME = os.getenv("AZURE_DEPLOYMENT_NAME")
-
-
-# Helpful error message if anything is missing
-if not AZURE_OPENAI_ENDPOINT:
-    raise ValueError("Missing AZURE_OPENAI_ENDPOINT in .env")
-
-if not AZURE_OPENAI_API_KEY:
-    raise ValueError("Missing AZURE_OPENAI_API_KEY in .env")
-
-if not DEPLOYMENT_NAME:
-    raise ValueError("Missing AZURE_DEPLOYMENT_NAME in .env")
-    
-    
-#Azure OpenAI client initialization/creat Azure OpenAI client
-
+# Initialize Azure OpenAI client
 client = AzureOpenAI(
-    azure_endpoint=AZURE_OPENAI_ENDPOINT,
-    api_key=AZURE_OPENAI_API_KEY,
-    api_version="2024-02-15-preview",
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    api_version="2024-02-15-preview"
 )
 
-#Deployment from .env
+
+# Azure deployment name
 DEPLOYMENT_NAME = os.getenv("AZURE_DEPLOYMENT_NAME")
+
 
 #Agent Initialization
 def study_and_plan_agent(user_id: str, course_id: str, goal:str) -> dict:
@@ -46,8 +35,12 @@ def study_and_plan_agent(user_id: str, course_id: str, goal:str) -> dict:
     Takes a goal + context, calls the Azure OpenAI API, and returns a structured study plan/guide
     """
 
-    #Get course context (hardcoded for now)
-    course_context = get_course_context(course_id)
+    # Retrieve relevant course material from the RAG database
+    course_context = get_course_context(course_id, goal)
+    
+    #Catch cases where someone asks for a course that has no uploaded materials.
+    if not course_context:
+    	raise ValueError(f"No course material found for {course_id}")
 
     #Build the user prompt
     user_prompt = build_user_prompt(goal, course_context)
@@ -72,7 +65,7 @@ def study_and_plan_agent(user_id: str, course_id: str, goal:str) -> dict:
     except json.JSONDecodeError:
         parsed_response = {
             "study_plan": [raw_text],
-            "focus_areas": [],
+            "focus_topics": [],
             "estimated_hours": None,
         }
     

@@ -53,9 +53,17 @@ def read_health():
 def get_study_plan(study: StudyPlanRequest):
 
     try:
-        course_context = get_course_context(study.course_id)
-        goal = study.goal.strip() if study.goal else None
-
+        print("STEP 1: received request")
+        
+        goal = study.goal.strip() if study.goal else ""
+        print("STEP 2: getting course context")
+        course_context = get_course_context(
+            study.course_id,
+            goal)
+        
+        print("STEP 3: course context received")
+        print(course_context)
+        
         if not course_context:
             raise HTTPException(status_code=404, detail=f"Course context not found for course_id: {study.course_id}")
 

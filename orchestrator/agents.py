@@ -42,13 +42,20 @@ def call_study_agent(
 # Assessment Agent
 # -------------------------
 
-def call_assessment_agent(topic: str):
+def call_assessment_agent(
+        user_id: str,
+    	course_id: str,
+    	topic: str,
+   		num_questions: int = 5
+):
 
     response = requests.post(
         ASSESSMENT_AGENT_URL,
         json={
-            "topic": topic,
-            "num_questions": 3
+       		"user_id": user_id,
+        	"course_id": course_id,
+        	"topic": topic,
+        	"num_questions": num_questions
         },
         timeout=60
     )

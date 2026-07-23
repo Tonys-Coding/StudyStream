@@ -1,128 +1,146 @@
-COURSE_DATA = {
-    "CS3354": {
-        "name": "Software Engineering",
-        "topics": [
-            "Requirements Engineering",
-            "System Architecture",
-            "Design Patterns"
-        ],
-        "upcoming_exams": [
-            {
-                "name": "Midterm Exam",
-                "topics": ["Requirements Engineering", "System Architecture"]
-            },
-            {
-                "name": "Final Exam",
-                "topics": ["Design Patterns", "System Architecture"]
-            }
-        ],
-        "assignments": [
-            {
-                "name": "First Homework Assignment",
-                "description": "Introductory work covering each topic"
-            },
-            {
-                "name": "Midterm Assignment",
-                "description": "Intermediate level questions about each topic"
-            }
-        ]
-    },
+from pathlib import Path
+import os
 
-    "HIST2301": {
-        "name": "World History Since 1500",
-        "topics": [
-            "The Age of Exploration",
-            "The Industrial Revolution",
-            "The Cold War Era"
-        ],
-        "upcoming_exams": [
-            {
-                "name": "Midterm Exam",
-                "topics": ["The Age of Exploration", "The Industrial Revolution"]
-            },
-            {
-                "name": "Final Exam",
-                "topics": ["The Cold War Era", "The Industrial Revolution"]
-            }
-        ],
-        "assignments": [
-            {
-                "name": "Primary Source Analysis",
-                "description": "Analyze a primary source document from the Age of Exploration"
-            },
-            {
-                "name": "Research Essay",
-                "description": "5-page essay on causes and effects of the Industrial Revolution"
-            }
-        ]
-    },
+from dotenv import load_dotenv
+from openai import AzureOpenAI
+from supabase import create_client
 
-    "BIOL1441": {
-        "name": "Introduction to Cell Biology",
-        "topics": [
-            "Cell Structure and Function",
-            "Cellular Respiration",
-            "DNA Replication and Protein Synthesis"
-        ],
-        "upcoming_exams": [
-            {
-                "name": "Midterm Exam",
-                "topics": ["Cell Structure and Function", "Cellular Respiration"]
-            },
-            {
-                "name": "Final Exam",
-                "topics": ["DNA Replication and Protein Synthesis", "Cellular Respiration"]
-            }
-        ],
-        "assignments": [
-            {
-                "name": "Lab Report: Microscopy",
-                "description": "Identify and describe cell organelles observed under a microscope"
-            },
-            {
-                "name": "Cellular Respiration Worksheet",
-                "description": "Diagram and explain the stages of cellular respiration"
-            }
-        ]
-    },
 
-    "FIN3320": {
-        "name": "Principles of Corporate Finance",
-        "topics": [
-            "Time Value of Money",
-            "Risk and Return",
-            "Capital Budgeting"
-        ],
-        "upcoming_exams": [
-            {
-                "name": "Midterm Exam",
-                "topics": ["Time Value of Money", "Risk and Return"]
-            },
-            {
-                "name": "Final Exam",
-                "topics": ["Capital Budgeting", "Risk and Return"]
-            }
-        ],
-        "assignments": [
-            {
-                "name": "NPV Calculation Problem Set",
-                "description": "Calculate net present value for a series of sample investment projects"
-            },
-            {
-                "name": "Portfolio Risk Analysis",
-                "description": "Analyze risk and return tradeoffs across a sample investment portfolio"
-            }
-        ]
-    }
-}
+# Load root .env first
+BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR / ".env")
 
-def get_course_context(course_id: str):
-    try: 
-        return COURSE_DATA.get(course_id, {})
-    except Exception as e:
-        return f"Error retrieving course context for {course_id}: {e}"
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+supabase = create_client(
+    SUPABASE_URL,
+    SUPABASE_KEY
+)
+
+
+client = AzureOpenAI(
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
+    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    api_version="2024-02-15-preview"
+)
+
+
+EMBEDDING_DEPLOYMENT_NAME = os.getenv(
+    "AZURE_EMBEDDING_DEPLOYMENT_NAME"
+)
+
+DEPLOYMENT_NAME = os.getenv(
+    "AZURE_DEPLOYMENT_NAME"
+)
+
+print("Embedding deployment:", EMBEDDING_DEPLOYMENT_NAME)
+print("Chat deployment:", DEPLOYMENT_NAME)
+
+def get_course_context(course_id: str, goal: str):
+
+    if not goal: 
+        raise ValueError("Goal is required to retrieve course context.")
+
+    results= retrieve_relevant_chunks(course_id, goal)
+    contents = [r["content"] for r in results]
+
+    return {"content_chunks": contents}
     
+
+def extract_text_from_file(file_path: str) -> str:
+    fileName = Path(file_path).suffix
+
+    if fileName == ".txt":
+        with open(file_path, 'r') as file:
+            return file.read()
+        
+    elif fileName == ".pdf":
+
+        reader = pypdf.PdfReader(file_path)
+        text = ""
+        for page in reader.pages:
+            text += page.extract_text() + "\n"
+        return text
+    
+    elif fileName == ".docx":
+        doc = Document(file_path)
+        text =""
+        for paragraph in doc.paragraphs:
+            text += paragraph.text + "\n"
+        return text
+    
+    else:
+        raise ValueError(f"Unsupported file type: {fileName}. Only .txt, .pdf, and .docx are supported.")
+
+   
+def chunk_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
+    """
+    Splits the input text into chunks of specified size with optional overlap.
+    """
+    chunks = []
+    start = 0
+    text_length = len(text)
+
+    while start < text_length:
+        end = min(start + chunk_size, text_length)
+        chunk = text[start:end]
+        chunks.append(chunk)
+        start += chunk_size - overlap  # Move start forward by chunk_size minus overlap
+
+    return chunks
+
+
+def embed_chunk(text: str) -> list[float]:
+
+    print("Embedding deployment used:", EMBEDDING_DEPLOYMENT_NAME)
+
+    response = client.embeddings.create(
+        model=EMBEDDING_DEPLOYMENT_NAME,
+        input=text
+    )
+
+    return response.data[0].embedding
+
+def ingest_file(file_path: str, course_id: str, tag: str = "document"):
+    text = extract_text_from_file(file_path)
+    chunks = chunk_text(text)
+    source = Path(file_path).name  
+
+    for i, chunk in enumerate(chunks):
+        embedding_vector = embed_chunk(chunk)
+        
+        supabase.table("course_materials").insert({
+            "course_id": course_id,
+            "tag": tag,
+            "source": source, 
+            "content": chunk,
+            "embedding": embedding_vector
+        }).execute()
+
+def retrieve_relevant_chunks(course_id: str, query: str, match_count: int = 5) -> list[dict]:
+    
+    query_vector = embed_chunk(query)
+    response = supabase.rpc("match_course_materials", {
+    "query_embedding": query_vector,
+    "match_course_id": course_id,
+    "match_count": match_count
+}).execute()
+    
+    return response.data or []
+    
+def course_has_content(course_id: str) -> bool:
+    """
+    Cheap existence check to see if this course has any ingested material at all. 
+    """
+
+    response = supabase.table("course_materials").select("id").eq("course_id", course_id).limit(1).execute()
+
+    return len(response.data) > 0
+
 # Verification Test
 if __name__ == "__main__":
-    print(get_course_context("CS3354"))
-    print(get_course_context("FAKE101"))
+    print("\n--- Testing empty result case ---")
+    empty_context = get_course_context("HIST2301", "What is covered on the midterm?")
+    print(empty_context)

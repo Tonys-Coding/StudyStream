@@ -56,7 +56,10 @@ def route_request(
 
 
         result = call_assessment_agent(
-            topic=message
+            user_id=user_id,
+            course_id=course_id,
+            topic=message,
+            num_questions=5
         )
 
 
@@ -64,7 +67,6 @@ def route_request(
             "agent": "Assessment Agent",
             "response": result
         }
-
 
 
     # -------------------------
