@@ -4,6 +4,7 @@ class StudyPlanRequest(BaseModel):
     user_id: str
     course_id: str
     goal: str
+    requesting_user_id: str
 
 class StudyPlanResponse(BaseModel):
     success: bool

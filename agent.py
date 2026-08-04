@@ -21,14 +21,14 @@ client = AzureOpenAI(
 DEPLOYMENT_NAME = os.getenv("AZURE_DEPLOYMENT_NAME")
 
 #Agent Initialization
-def study_and_plan_agent(user_id: str, course_id: str, goal:str) -> dict:
+def study_and_plan_agent(user_id: str, requesting_user_id: str, course_id: str, goal:str) -> dict:
     """
     This is the core agent logic. 
     Takes a goal + context, calls the Azure OpenAI API, and returns a structured study plan/guide
     """
 
     #Get course context (hardcoded for now)
-    course_context = get_course_context(course_id, goal)
+    course_context = get_course_context(course_id, requesting_user_id, goal)
 
     #Build the user prompt
     user_prompt = build_user_prompt(goal, course_context)

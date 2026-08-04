@@ -1,4 +1,7 @@
 from urllib import response
+import shutil
+import tempfile
+from fastapi import UploadFile
 import pypdf
 from pathlib import Path
 from docx import Document
@@ -25,12 +28,12 @@ client = AzureOpenAI(
 EMBEDDING_DEPLOYMENT_NAME = os.getenv("AZURE_EMBEDDING_DEPLOYMENT_NAME")
  
 
-def get_course_context(course_id: str, goal: str):
+def get_course_context(course_id: str, requesting_user_id: str, goal: str):
 
     if not goal: 
         raise ValueError("Goal is required to retrieve course context.")
 
-    results= retrieve_relevant_chunks(course_id, goal)
+    results= retrieve_relevant_chunks(course_id, requesting_user_id, goal)
     contents = [r["content"] for r in results]
 
     return {"content_chunks": contents}
@@ -87,7 +90,7 @@ def embed_chunk(text: str) -> list[float]:
 
     return response.data[0].embedding
 
-def ingest_file(file_path: str, course_id: str, tag: str = "document"):
+def ingest_file(file_path: str, course_id: str, uploaded_by: str, visibility: str= "class", tag: str = "document"):
     text = extract_text_from_file(file_path)
     chunks = chunk_text(text)
     source = Path(file_path).name  
@@ -98,16 +101,19 @@ def ingest_file(file_path: str, course_id: str, tag: str = "document"):
         supabase.table("course_materials").insert({
             "course_id": course_id,
             "tag": tag,
+            "uploaded_by": uploaded_by,
+            "visibility": visibility, 
             "source": source, 
             "content": chunk,
             "embedding": embedding_vector
         }).execute()
 
-def retrieve_relevant_chunks(course_id: str, query: str, match_count: int = 5) -> list[dict]:
+def retrieve_relevant_chunks(course_id: str, requesting_user_id: str, query: str, match_count: int = 5) -> list[dict]:
     
     query_vector = embed_chunk(query)
     response = supabase.rpc("match_course_materials", {
     "query_embedding": query_vector,
+    "requesting_user_id": requesting_user_id,
     "match_course_id": course_id,
     "match_count": match_count
 }).execute()
@@ -123,9 +129,29 @@ def course_has_content(course_id: str) -> bool:
 
     return len(response.data) > 0
 
+def save_upload_temporarily(file: UploadFile) -> str:
+    suffix = Path(file.filename).suffix
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        
+        return tmp.name
+    
+def get_visible_materials(course_id: str, requesting_user_id: str) -> list[dict]:
+
+    materials = supabase.table("course_materials").select("*").eq("course_id", course_id)
+   
+    visibility_filter = (
+        f"visibility.eq.class,"
+        f"and(visibility.eq.private,uploaded_by.eq.{requesting_user_id})"
+    )
+
+    response = materials.or_(visibility_filter).execute()
+
+    return response.data
+
 # Verification Test
 if __name__ == "__main__":
     print("\n--- Testing empty result case ---")
-    empty_context = get_course_context("HIST2301", "What is covered on the midterm?")
+    empty_context = get_course_context("HIST2301","test-user-id", "What is covered on the midterm?")
     print(empty_context)
 
