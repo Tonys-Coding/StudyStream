@@ -1,0 +1,34 @@
+[
+  {
+    "keywords": ["newton's second law", "newtons second law", "second law of motion", "f = ma", "f=ma"],
+    "answer": "Newton's Second Law states that the acceleration of an object is directly proportional to the net force acting on it and inversely proportional to its mass. It is expressed as F = ma, where F is force (in newtons), m is mass (in kilograms), and a is acceleration (in m/s²)."
+  },
+  {
+    "keywords": ["newton's first law", "newtons first law", "first law of motion", "law of inertia", "inertia"],
+    "answer": "Newton's First Law, also called the law of inertia, states that an object at rest stays at rest, and an object in motion stays in motion at constant velocity, unless acted upon by an unbalanced external force."
+  },
+  {
+    "keywords": ["newton's third law", "newtons third law", "third law of motion", "action reaction"],
+    "answer": "Newton's Third Law states that for every action, there is an equal and opposite reaction. When one object exerts a force on a second object, the second object exerts a force of equal magnitude and opposite direction on the first."
+  },
+  {
+    "keywords": ["gravity", "gravitational force", "weight"],
+    "answer": "Gravity is the attractive force between objects with mass. On Earth's surface, the gravitational acceleration is approximately 9.8 m/s². Weight is calculated as W = mg, where m is mass and g is gravitational acceleration."
+  },
+  {
+    "keywords": ["kinetic energy", "energy of motion"],
+    "answer": "Kinetic energy is the energy an object possesses due to its motion. It is calculated using KE = ½mv², where m is mass and v is velocity."
+  },
+  {
+    "keywords": ["potential energy", "gravitational potential energy"],
+    "answer": "Potential energy is stored energy due to an object's position or configuration. Gravitational potential energy near Earth's surface is PE = mgh, where m is mass, g is gravitational acceleration, and h is height."
+  },
+  {
+    "keywords": ["velocity", "speed"],
+    "answer": "Velocity is a vector quantity describing the rate of change of position with direction, measured in m/s. Speed is the magnitude of velocity (how fast an object moves) without direction."
+  },
+  {
+    "keywords": ["acceleration"],
+    "answer": "Acceleration is the rate of change of velocity over time, measured in m/s². An object accelerates when it speeds up, slows down, or changes direction."
+  }
+]
