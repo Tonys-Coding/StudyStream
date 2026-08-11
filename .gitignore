@@ -1,0 +1,23 @@
+# Secrets — never commit these.
+# The root .env holds the Azure OpenAI key and the Supabase service_role key.
+.env
+.env.*
+!.env.example
+*.key
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.venv-*/
+venv/
+
+# Node
+node_modules/
+dist/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
