@@ -8,7 +8,7 @@
     "allowArbitraryExtensions": true,
     "skipLibCheck": true,
 
-    "baseUrl": ".",
+    /* baseUrl is deprecated in TS 6; paths now resolve relative to this file */
     "paths": {
       "@/*": ["./src/*"]
     },
