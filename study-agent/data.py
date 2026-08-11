@@ -1,9 +1,18 @@
 from pathlib import Path
 import os
+import shutil
+import tempfile
 
+import pypdf
+from docx import Document
 from dotenv import load_dotenv
+from fastapi import UploadFile
 from openai import AzureOpenAI
 from supabase import create_client
+
+
+# Formats extract_text_from_file knows how to read.
+SUPPORTED_EXTENSIONS = (".txt", ".pdf", ".docx")
 
 
 # Load root .env first
@@ -103,21 +112,211 @@ def embed_chunk(text: str) -> list[float]:
 
     return response.data[0].embedding
 
-def ingest_file(file_path: str, course_id: str, tag: str = "document"):
+def save_upload_temporarily(file: UploadFile) -> str:
+    """
+    Spools an upload to disk so the extractors can read it by path.
+
+    Keeps the original suffix, since extract_text_from_file dispatches on it.
+    """
+
+    suffix = Path(file.filename or "").suffix.lower()
+
+    with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        shutil.copyfileobj(file.file, tmp)
+        return tmp.name
+
+
+def ingest_file(
+        file_path: str,
+        course_id: str,
+        tag: str = "document",
+        source: str | None = None
+) -> int:
+    """
+    Chunks, embeds, and stores a file. Returns the number of chunks written.
+
+    `source` should be the name the student uploaded. Without it this falls
+    back to the path's filename, which for a spooled upload is a temp name
+    like "tmp17uzcv0v.txt" - useless for telling materials apart later.
+    """
+
     text = extract_text_from_file(file_path)
     chunks = chunk_text(text)
-    source = Path(file_path).name  
 
-    for i, chunk in enumerate(chunks):
+    if not text.strip():
+        raise ValueError("That file appears to be empty - no text could be read from it.")
+
+    source = source or Path(file_path).name
+
+    for chunk in chunks:
         embedding_vector = embed_chunk(chunk)
-        
+
         supabase.table("course_materials").insert({
             "course_id": course_id,
             "tag": tag,
-            "source": source, 
+            "source": source,
             "content": chunk,
             "embedding": embedding_vector
         }).execute()
+
+    return len(chunks)
+
+
+# The description column is optional, so this keeps working against a
+# database where it has not been added yet. See Supabase_Setup.md.
+_has_description: bool | None = None
+
+
+def has_description_column() -> bool:
+    """
+    Only a positive result is cached. Caching a negative would strand a
+    running server on 501 after someone adds the column, until a restart.
+    """
+
+    global _has_description
+
+    if _has_description:
+        return True
+
+    try:
+        supabase.table("course_materials") \
+            .select("description") \
+            .limit(1) \
+            .execute()
+        _has_description = True
+    except Exception:
+        return False
+
+    return True
+
+
+ADD_DESCRIPTION_SQL = (
+    "alter table course_materials add column if not exists description text;"
+)
+
+
+def list_materials(course_id: str) -> list[dict]:
+    """
+    One entry per uploaded file for this course, with its chunk count.
+    """
+
+    columns = "source,tag"
+
+    if has_description_column():
+        columns += ",description"
+
+    response = supabase.table("course_materials") \
+        .select(columns) \
+        .eq("course_id", course_id) \
+        .execute()
+
+    # Chunks of the same file share one description; keep the first non-empty.
+    grouped: dict[tuple[str, str], dict] = {}
+
+    for row in response.data or []:
+
+        key = (row["source"], row["tag"])
+        entry = grouped.setdefault(key, {"chunks": 0, "description": None})
+
+        entry["chunks"] += 1
+
+        if entry["description"] is None and row.get("description"):
+            entry["description"] = row["description"]
+
+    return [
+        {
+            "source": source,
+            "tag": tag,
+            "chunks": entry["chunks"],
+            "description": entry["description"],
+        }
+        for (source, tag), entry in sorted(grouped.items())
+    ]
+
+
+def list_courses() -> list[dict]:
+    """
+    Every course that has material ingested, with its chunk count.
+
+    Lets the UI show courses that exist in the database but are not in a
+    given browser's local list.
+    """
+
+    response = supabase.table("course_materials") \
+        .select("course_id") \
+        .execute()
+
+    counts: dict[str, int] = {}
+
+    for row in response.data or []:
+        counts[row["course_id"]] = counts.get(row["course_id"], 0) + 1
+
+    return [
+        {"course_id": course_id, "chunks": n}
+        for course_id, n in sorted(counts.items())
+    ]
+
+
+def delete_material(course_id: str, source: str) -> int:
+    """
+    Removes every chunk of one uploaded file. Returns how many were deleted.
+    """
+
+    existing = supabase.table("course_materials") \
+        .select("id") \
+        .eq("course_id", course_id) \
+        .eq("source", source) \
+        .execute()
+
+    if not existing.data:
+        raise LookupError(
+            f"No material named '{source}' found for course {course_id}."
+        )
+
+    supabase.table("course_materials") \
+        .delete() \
+        .eq("course_id", course_id) \
+        .eq("source", source) \
+        .execute()
+
+    return len(existing.data)
+
+
+def set_material_description(
+        course_id: str,
+        source: str,
+        description: str
+) -> int:
+    """
+    Sets the description on every chunk of one uploaded file.
+
+    Returns the number of rows updated. Raises if the file is not found.
+    """
+
+    if not has_description_column():
+        raise RuntimeError(
+            "The course_materials table has no 'description' column yet. "
+            f"Run this once in the Supabase SQL editor: {ADD_DESCRIPTION_SQL}"
+        )
+
+    existing = supabase.table("course_materials") \
+        .select("id") \
+        .eq("course_id", course_id) \
+        .eq("source", source) \
+        .execute()
+
+    if not existing.data:
+        raise LookupError(
+            f"No material named '{source}' found for course {course_id}."
+        )
+
+    supabase.table("course_materials") \
+        .update({"description": description}) \
+        .eq("course_id", course_id) \
+        .eq("source", source) \
+        .execute()
+
+    return len(existing.data)
 
 def retrieve_relevant_chunks(course_id: str, query: str, match_count: int = 5) -> list[dict]:
     
@@ -139,8 +338,3 @@ def course_has_content(course_id: str) -> bool:
 
     return len(response.data) > 0
 
-# Verification Test
-if __name__ == "__main__":
-    print("\n--- Testing empty result case ---")
-    empty_context = get_course_context("HIST2301", "What is covered on the midterm?")
-    print(empty_context)

@@ -3,6 +3,20 @@
 
 
 COURSE_DATA = {
+    # Topics here mirror study-agent/sample.txt, the syllabus ingested into
+    # Supabase under HIST301. Keep the two in sync, otherwise the quiz and
+    # the study plan describe different courses.
+    "HIST301": {
+        "course_name": "Time Travel & Historical Paradoxes",
+        "topics": [
+            "Theoretical Time Dilation",
+            "Temporal Mechanics and Paradoxes",
+            "The Grandfather Paradox",
+            "The Butterfly Effect",
+            "Ethics of Historical Intervention",
+            "Alternate Histories"
+        ]
+    },
     "CS3354": {
         "course_name": "Software Engineering",
         "topics": [

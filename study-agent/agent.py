@@ -3,7 +3,6 @@ import json
 from pathlib import Path
 from openai import AzureOpenAI
 from dotenv import load_dotenv
-from data import get_course_context #Importing file 
 from prompts import SYSTEM_PROMPT, build_user_prompt #Importing file
 
 #Loading .env from the same directory as this file
@@ -29,18 +28,20 @@ DEPLOYMENT_NAME = os.getenv("AZURE_DEPLOYMENT_NAME")
 
 
 #Agent Initialization
-def study_and_plan_agent(user_id: str, course_id: str, goal:str) -> dict:
+def study_and_plan_agent(
+        user_id: str,
+        course_id: str,
+        goal: str,
+        course_context: dict
+) -> dict:
     """
-    This is the core agent logic. 
+    This is the core agent logic.
     Takes a goal + context, calls the Azure OpenAI API, and returns a structured study plan/guide
-    """
 
-    # Retrieve relevant course material from the RAG database
-    course_context = get_course_context(course_id, goal)
-    
-    #Catch cases where someone asks for a course that has no uploaded materials.
-    if not course_context:
-    	raise ValueError(f"No course material found for {course_id}")
+    The caller retrieves the context and passes it in. Fetching it here as
+    well would embed the goal a second time and re-run the vector search,
+    doubling the latency and the embedding spend on every request.
+    """
 
     #Build the user prompt
     user_prompt = build_user_prompt(goal, course_context)

@@ -1,5 +1,3 @@
-from data import get_course_context
-
 SYSTEM_PROMPT = """
 You are a professional AI study assistant for a university course. 
 Your job is to generate structured, actionable study plans based on a student's goal 
