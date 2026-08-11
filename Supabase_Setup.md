@@ -76,6 +76,20 @@ There is currently one table, `course_materials`, used for storing course conten
 
 There's also a Postgres function, `match_course_materials`, used to run similarity search — given a query embedding and a `course_id`, it returns the closest-matching chunks for that course.
 
+### Optional: `description` column
+
+The Overview tab shows a table of uploaded material with a short, editable
+description per file. That needs one extra column. Run this once in the
+Supabase SQL editor:
+
+```sql
+alter table course_materials add column if not exists description text;
+```
+
+It is additive and nullable, so it cannot break existing queries. Until it is
+added, the materials table still lists every file — descriptions just cannot
+be saved, and the app says so rather than failing silently.
+
 **If your agent needs a new table or new columns, please coordinate first** — since this is a shared database, 
 uncoordinated schema changes could break other agents' queries.
 
