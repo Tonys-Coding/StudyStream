@@ -2,95 +2,135 @@
 
 ## Version
 
-1.0
+2.0 — describes the endpoints as implemented.
 
 ## Purpose
 
-This document defines the communication interfaces between the frontend, orchestrator, and specialized agents within the AI Classroom Assistant system.
-
-The goal is to ensure all team members build services that communicate using consistent request and response formats.
+Defines the interfaces between the frontend, the orchestrator, and the
+specialized agents.
 
 ---
 
 # System Architecture
 
-Frontend (React + TypeScript)
+```text
+Frontend (React + TypeScript, :5173)
+        ↓  Authorization: Bearer <supabase jwt>
+Orchestrator (FastAPI, :8001)      <- the only browser-facing service
+        ↓
+FAQ (:8000) | Assessment (:8002) | Study (:8003)
+        ↓
+Supabase pgvector + Azure OpenAI
+```
 
-↓
-
-Orchestrator Service (FastAPI)
-
-↓
-
-FAQ Agent | Quiz & Assessment Agent | Study Planning & Feedback Agent
-
-↓
-
-Knowledge Sources (Hardcoded Data → Future RAG)
+Only the orchestrator has CORS configured. The agents are called
+server-to-server and should not be exposed to the browser.
 
 ---
 
-# Standard Request Object
+# Authentication
 
-All requests sent to the orchestrator must follow the structure below.
+Every orchestrator endpoint except `/health` expects:
 
-```json
-{
-  "user_id": "123",
-  "course_id": "CS3354",
-  "query": "What topics are covered on the midterm?"
-}
+```text
+Authorization: Bearer <supabase access_token>
 ```
 
-### Fields
+The orchestrator verifies the token with Supabase and derives `user_id` from
+it. **A `user_id` in the request body is ignored whenever a token is
+present** — it exists only as a fallback for local development.
 
-| Field     | Type   | Description               |
-| --------- | ------ | ------------------------- |
-| user_id   | string | Unique student identifier |
-| course_id | string | Course identifier         |
-| query     | string | Student request           |
+Setting `REQUIRE_AUTH=false` in `orchestrator-work/.env` lets unauthenticated
+requests through, so `/docs` and the test script work without a token. It must
+be `true` anywhere other than a local machine.
 
 ---
 
-# Standard Response Object
+# Error Format
+
+Every failure from the orchestrator has the same shape:
 
 ```json
 {
-  "success": true,
-  "agent": "faq",
-  "response": {}
+  "success": false,
+  "message": "Study Agent: No course material found for course_id: CS2336."
 }
 ```
 
-### Fields
-
-| Field    | Type    | Description                |
-| -------- | ------- | -------------------------- |
-| success  | boolean | Request status             |
-| agent    | string  | Agent that handled request |
-| response | object  | Agent output               |
+Status codes are passed through from the agent that failed: 400 bad input,
+401 auth, 404 no material, 413 file too large, 429 rate limited, 503 agent
+unreachable, 504 timeout.
 
 ---
 
 # Orchestrator API
 
-## POST /orchestrator/query
+## POST /ask
 
-### Description
-
-Main entry point for all user requests.
-
-The orchestrator determines which agent(s) should process the request.
+The workspace endpoint. Sends one message to every relevant agent and returns
+all of their output plus a combined overview.
 
 ### Request
 
 ```json
 {
-  "user_id": "123",
-  "course_id": "CS3354",
-  "query": "Generate a quiz on Chapter 4"
+  "message": "Help me get ready for the midterm",
+  "course_id": "HIST301",
+  "num_questions": 5,
+  "agents": ["study", "quiz", "faq"]
 }
 ```
+
+| Field         | Type     | Required | Description                                        |
+| ------------- | -------- | -------- | -------------------------------------------------- |
+| message       | string   | yes      | The student's question                             |
+| course_id     | string   | yes      | Course identifier                                  |
+| num_questions | int      | no       | Quiz length, default 5                             |
+| agents        | string[] | no       | Forces which agents run. Omit to let the model pick |
+
+### Response
+
+```json
+{
+  "success": true,
+  "query": "Help me get ready for the midterm",
+  "overview": "You have a six-step study plan covering...",
+  "selected_agents": ["study", "quiz", "faq"],
+  "agents": {
+    "study": { "success": true, "response": { } },
+    "quiz":  { "success": true, "response": { } },
+    "faq":   { "success": false, "message": "No course material found." }
+  }
+}
+```
+
+**Agents fail independently.** An entry in `agents` is either
+`{"success": true, "response": ...}` or `{"success": false, "message": ...}`.
+One agent failing does not fail the request — the top-level status stays 200.
+
+Agent slugs are `study`, `quiz`, and `faq`.
+
+---
+
+## POST /chat
+
+Routes a message to a **single** agent.
+
+### Request
+
+```json
+{
+  "message": "Generate a quiz on Chapter 4",
+  "course_id": "CS3354",
+  "agent": "quiz",
+  "num_questions": 5
+}
+```
+
+`agent` is optional. Without it the orchestrator falls back to keyword
+matching, where study keywords are checked before quiz keywords — so
+"practice quiz for the final" routes to **study**. Pass `agent` explicitly
+when you know which one you want.
 
 ### Response
 
@@ -98,151 +138,133 @@ The orchestrator determines which agent(s) should process the request.
 {
   "success": true,
   "agent": "quiz",
-  "response": {
-    "questions": [
-      {
-        "question": "What is RAG?",
-        "answer": "Retrieval-Augmented Generation"
-      }
-    ]
-  }
+  "response": { }
 }
 ```
 
 ---
 
-# FAQ Agent API
-
-## POST /faq/query
-
-### Description
-
-Provides answers to course-related questions.
-
-### Request
+## GET /materials/{course_id}
 
 ```json
 {
-  "query": "What topics are covered on the midterm?"
+  "success": true,
+  "course_id": "HIST301",
+  "materials": [
+    { "source": "syllabus.pdf", "tag": "uploaded", "chunks": 12 }
+  ]
 }
 ```
 
-### Response
+An empty `materials` array means study plans and FAQ answers are not possible
+for that course yet.
+
+---
+
+## POST /materials/upload
+
+`multipart/form-data`.
+
+| Field     | Type   | Description                          |
+| --------- | ------ | ------------------------------------ |
+| course_id | string | Course to attach the material to     |
+| file      | file   | `.txt`, `.pdf`, or `.docx` only      |
+
+Rejects unsupported extensions with 400 and files over `MAX_UPLOAD_MB`
+(default 10) with 413.
 
 ```json
 {
-  "answer": "The midterm covers Chapters 1 through 5."
+  "success": true,
+  "source": "syllabus.pdf",
+  "course_id": "HIST301",
+  "chunks": 12
 }
 ```
 
 ---
 
-# Quiz & Assessment Agent API
-
-## POST /quiz/generate
-
-### Description
-
-Generates practice quizzes and review questions.
-
-### Request
+## POST /profile/setup
 
 ```json
-{
-  "topic": "Chapter 4"
-}
+{ "role": "student", "full_name": "Jane Doe" }
 ```
 
-### Response
+`role` must be `teacher`, `student`, or `ta`. Returns 409 if the profile
+already exists.
+
+---
+
+## GET /health
+
+```json
+{ "status": "healthy", "service": "orchestrator" }
+```
+
+---
+
+# Agent APIs
+
+Called by the orchestrator, not the browser.
+
+## FAQ Agent — POST :8000/faq
+
+```json
+{ "question": "What is the grading breakdown?", "course_id": "HIST301" }
+```
+
+```json
+{ "success": true, "answer": "Paradox Presentations are 20%..." }
+```
+
+Answers only from retrieved course material, and says so when the material
+does not cover the question. Returns 404 when the course has none.
+
+## Assessment Agent — POST :8002/generate_quiz
+
+```json
+{ "user_id": "...", "course_id": "CS3354", "topic": "Testing", "num_questions": 5 }
+```
 
 ```json
 {
+  "success": true,
   "questions": [
-    {
-      "question": "Define Retrieval-Augmented Generation.",
-      "answer": "A technique combining retrieval and LLM generation."
-    }
+    { "question": "...", "choices": ["A", "B", "C", "D"], "answer": "B" }
   ]
 }
 ```
 
----
+Reads `COURSE_DATA` in `assessment-agent/data.py`, **not** Supabase. A course
+must be listed there or this returns 404.
 
-# Study Planning & Feedback Agent API
+## Study Agent — POST :8003/study_plan
 
-## POST /study/plan
-
-### Description
-
-Generates personalized study recommendations and plans.
-
-### Request
+```json
+{ "user_id": "...", "course_id": "HIST301", "goal": "Prepare for the midterm" }
+```
 
 ```json
 {
-  "goal": "Prepare for midterm"
+  "success": true,
+  "study_plan": ["Review weeks 1-4...", "..."],
+  "focus_topics": ["Time Dilation"],
+  "estimated_hours": 10.0
 }
 ```
 
-### Response
+`focus_topics` and `estimated_hours` are nullable. Returns 404 when the
+course has no ingested material, 400 when `goal` is empty.
 
-```json
-{
-  "study_plan": [
-    "Review Chapters 1-2",
-    "Review Chapters 3-4",
-    "Take a practice quiz",
-    "Review missed concepts"
-  ]
-}
-```
-
----
-
-# Error Response Format
-
-All services should return errors in a consistent format.
-
-```json
-{
-  "success": false,
-  "message": "Invalid request."
-}
-```
-
----
-
-# Initial Development Notes
-
-For the MVP, agents will use hardcoded course data and predefined responses.
-
-Example:
-
-```json
-{
-  "midterm_topics": [
-    "Chapter 1",
-    "Chapter 2",
-    "Chapter 3",
-    "Chapter 4",
-    "Chapter 5"
-  ]
-}
-```
-
-This allows development and integration to proceed before the course database and RAG pipeline are available.
+The study agent also owns `GET /materials/{course_id}` and
+`POST /materials/upload`, which the orchestrator proxies.
 
 ---
 
 # Future Enhancements
 
-Planned additions include:
+* RAG for the Assessment agent, replacing its hardcoded topics
+* Student progress tracking and instructor analytics
+* Per-user material visibility
 
-* Supabase Authentication
-* Student Progress Tracking
-* RAG Retrieval Pipeline
-* pgvector Integration
-* Instructor Analytics
-* Multi-Course Support
-
-These enhancements should not require changes to the core API structure defined in this document.
+These should not require changes to the shapes above.

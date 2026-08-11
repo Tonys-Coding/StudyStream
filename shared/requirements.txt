@@ -8,3 +8,4 @@ httpx
 supabase
 pypdf
 python-docx
+python-multipart

@@ -1,46 +1,73 @@
 #!/bin/bash
+#
+# Starts the four backend services.
+# To start the frontend as well, use ../start.sh instead.
 
-echo "Starting AI Classroom Assistant..."
+echo "Starting AI Classroom Assistant backend..."
+
+# Run from the folder this script lives in, so the relative paths below
+# work no matter where you invoke it from.
+cd "$(dirname "$0")" || exit 1
+
 
 # Activate virtual environment
-source venv/bin/activate
+# Override with: VENV=../some-other-venv ./start.sh
+VENV="${VENV:-../.venv-1}"
+
+if [ ! -f "$VENV/bin/activate" ]; then
+    echo "ERROR: no virtual environment at $VENV"
+    echo "Create one, or point at an existing one with: VENV=path ./start.sh"
+    exit 1
+fi
+
+source "$VENV/bin/activate"
 
 
-# Start FAQ Agent
-echo "Starting FAQ Agent on port 8000..."
-(
-    cd faq-agent
-    uvicorn main:app --reload --port 8000
-) &
+# The agents read Azure and Supabase credentials from this file.
+if [ ! -f ".env" ]; then
+    echo "ERROR: .env not found in $(pwd)"
+    echo "Copy it from the project root: cp ../.env .env"
+    exit 1
+fi
 
 
-# Start Assessment Agent
-echo "Starting Assessment Agent on port 8002..."
-(
-    cd assessment-agent
-    uvicorn main:app --reload --port 8002
-) &
+PIDS=()
+
+start_service() {
+    local name="$1"
+    local dir="$2"
+    local port="$3"
+
+    echo "Starting $name on port $port..."
+
+    (
+        cd "$dir" || exit 1
+        exec uvicorn main:app --reload --host 127.0.0.1 --port "$port"
+    ) &
+
+    PIDS+=($!)
+}
 
 
-# Start Study Agent
-echo "Starting Study Agent on port 8003..."
-(
-    cd study-agent
-    uvicorn main:app --reload --port 8003
-) &
+# Stop only the services this script started - not the parent shell.
+cleanup() {
+    echo ""
+    echo "Stopping services..."
+    kill "${PIDS[@]}" 2>/dev/null
+    wait 2>/dev/null
+}
+
+trap cleanup EXIT INT TERM
 
 
-# Start Orchestrator
-echo "Starting Orchestrator on port 8001..."
-(
-    cd orchestrator
-    uvicorn main:app --reload --port 8001
-) &
+start_service "FAQ Agent"        faq-agent        8000
+start_service "Assessment Agent" assessment-agent 8002
+start_service "Study Agent"      study-agent      8003
+start_service "Orchestrator"     orchestrator     8001
 
 
-echo "All services started!"
-echo "Press CTRL+C to stop all services"
+echo ""
+echo "Backend running. API docs at http://127.0.0.1:8001/docs"
+echo "Press CTRL+C to stop."
 
-
-# Keep script running
 wait
