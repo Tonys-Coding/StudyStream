@@ -1,174 +1,116 @@
-# Assessment Agent
+# AI Classroom Assistant — Backend
 
-## Overview
+The orchestrator and all three specialist agents. The React frontend lives in
+the `frontend` branch, under `classroom-assistant-ui/`.
 
-This branch contains the development of the **Assessment Agent** for the AI Classroom Assistant project.
-
-The goal of this agent is to receive a request from a user, use the provided course information, communicate with Azure OpenAI, and generate assessment questions.
-
-For this first prototype, the agent uses a simple hard-coded course context. The purpose is to make sure the basic workflow is working correctly before adding more advanced features.
-
----
-
-## Current Status
-
-The Assessment Agent is currently able to:
-
-* Receive a quiz generation request through a FastAPI API
-* Read basic course information from `data.py`
-* Create a prompt using the course information and user request
-* Communicate with Azure OpenAI
-* Generate multiple-choice questions
-* Return the generated questions in a structured format
-
-At this stage, the agent does **not** use RAG yet. The connection with the RAG system will be added in a future version so the agent can use actual course materials, such as lecture notes, slides, and other class documents, when creating assessments.
+For the project overview and full setup, see the README at the project root.
+For exact request and response shapes, see [API_CONTRACT.md](API_CONTRACT.md).
+For local setup specifics, see [setup.md](setup.md).
 
 ---
 
-## How It Works
+## Services
 
-The current workflow is:
+| Service | Port | Role |
+| --- | --- | --- |
+| **Orchestrator** | 8001 | The only browser-facing service. Verifies the Supabase JWT, decides which agents to call, runs them in parallel, and summarises the result. |
+| **FAQ Agent** | 8000 | Answers course questions from retrieved material. |
+| **Assessment Agent** | 8002 | Generates multiple-choice practice questions. |
+| **Study Agent** | 8003 | Builds study plans. Also owns course material upload and retrieval. |
 
-```text
-User Request
-      |
-      v
-Assessment Agent API
-      |
-      v
-Course Information (data.py)
-      |
-      v
-Prompt Creation (prompts.py)
-      |
-      v
-Azure OpenAI
-      |
-      v
-Generated Quiz Response
-```
-
-Currently, `data.py` contains simple course information used for testing. The Assessment Agent uses this information to create a prompt and sends it to Azure OpenAI. The response from Azure OpenAI is then processed and returned to the user.
-
-Later, `data.py` will be replaced or extended with a connection to the RAG system so the agent can generate questions based on real course content.
+Only the orchestrator has CORS configured — the agents are called
+server-to-server and should not be exposed to a browser.
 
 ---
 
-## API
-
-The Assessment Agent runs on port **8002**.
-
-### Generate Quiz
-
-Endpoint:
-
-```
-POST /generate_quiz
-```
-
-Example request:
-
-```json
-{
-  "user_id": "123",
-  "course_id": "CS3354",
-  "topic": "Requirements Engineering",
-  "num_questions": 3
-}
-```
-
-Example response:
-
-```json
-{
-  "success": true,
-  "questions": [
-    {
-      "question": "What is the primary goal of requirements engineering?",
-      "choices": [
-        "Option A",
-        "Option B",
-        "Option C",
-        "Option D"
-      ],
-      "answer": "Option B"
-    }
-  ]
-}
-```
-
----
-
-## Project Structure
-
-```
-assessment-agent/
-
-├── main.py
-│   FastAPI application.
-│   Defines the API endpoints and handles requests.
-
-├── agent.py
-│   Main logic for the Assessment Agent.
-│   Handles the course context, creates prompts,
-│   calls Azure OpenAI, and processes the response.
-
-├── models.py
-│   Defines the request and response formats.
-
-├── prompts.py
-│   Contains the prompts used when communicating
-│   with Azure OpenAI.
-
-└── data.py
-    Contains temporary hard-coded course information
-    used for testing.
-```
-
----
-
-## Running the Agent
-
-From the `assessment-agent` folder:
+## Running
 
 ```bash
-uvicorn main:app --reload --port 8002
+./start.sh
 ```
 
-The agent will run at:
+Starts all four with reload enabled. Requires:
 
-```
-http://localhost:8002
-```
+- a virtual environment at `../.venv-1` (override with `VENV=path ./start.sh`)
+- a `.env` in this folder — `cp ../.env .env`
 
-Health check:
+API docs at <http://127.0.0.1:8001/docs>.
 
-```
-GET /health
-```
+To start everything including the frontend, use `../start.sh` instead.
 
-Generate quiz:
+### One service at a time
 
-```
-POST /generate_quiz
+Each runs from inside its own folder, because the imports are flat:
+
+```bash
+cd faq-agent
+uvicorn main:app --reload --port 8000
 ```
 
 ---
 
-## Notes
+## Where the knowledge comes from
 
-This is the first prototype version of the Assessment Agent.
+The agents do **not** share one source of truth, which matters when adding a
+course:
 
-The main focus of this branch is to build and test the Assessment Agent independently:
+- **Study and FAQ** retrieve from the `course_materials` table in Supabase,
+  filled by uploading files. They return 404 when a course has nothing
+  ingested, rather than inventing an answer.
+- **Assessment** reads hardcoded topics from `assessment-agent/data.py`. A
+  course must be listed there or quiz generation returns 404.
 
-* Receive requests
-* Communicate with Azure OpenAI
-* Generate assessment questions
-* Return responses correctly
+Replacing that hardcoded data with RAG is the main outstanding piece of work.
 
-The next steps will be improving the agent by connecting it with the RAG system and using real course materials instead of hard-coded information.
+---
 
-The integration between the Assessment Agent and the Orchestrator will be handled separately.
+## Layout
 
+```text
+orchestrator/
+  main.py         endpoints, CORS, error envelope
+  auth.py         Supabase JWT verification
+  router.py       agent selection, parallel fan-out
+  agents.py       HTTP calls to the agents, error passthrough
+  summarizer.py   picks the agents, writes the overview
+
+faq-agent/        main, agent, prompts, models, data (retrieval only)
+assessment-agent/ main, agent, prompts, models, data (hardcoded topics)
+study-agent/      main, agent, prompts, models, data (retrieval + ingestion)
+
+shared/requirements.txt
+test/test_orchestrator.py
 ```
+
+Each agent folder is self-contained: `main.py` holds the endpoints, `agent.py`
+the Azure call, `prompts.py` the system prompt, `data.py` the knowledge source.
+
+---
+
+## Tests
+
+With the services running and `REQUIRE_AUTH=false` in `.env`:
+
+```bash
+python test/test_orchestrator.py
 ```
+
+14 checks over single-agent routing, the `/ask` fan-out, and the error paths.
+Exits non-zero on failure. The script sends no token, which is why it needs
+that flag.
+
+---
+
+## Environment
+
+Read from `.env` in this folder:
+
+| Variable | Purpose |
+| --- | --- |
+| `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_ENDPOINT` | Azure OpenAI |
+| `AZURE_DEPLOYMENT_NAME` | Chat model deployment |
+| `AZURE_EMBEDDING_DEPLOYMENT_NAME` | Embedding deployment |
+| `SUPABASE_URL`, `SUPABASE_KEY` | Supabase, **service_role** key |
+| `REQUIRE_AUTH` | `false` relaxes auth for local dev. Defaults to true. |
+| `FRONTEND_ORIGINS` | Comma-separated CORS origins |
+| `MAX_UPLOAD_MB` | Upload size cap, default 10 |
