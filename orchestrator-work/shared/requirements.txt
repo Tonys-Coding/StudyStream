@@ -3,6 +3,9 @@ uvicorn
 openai
 python-dotenv
 pydantic
+requests
+httpx
+supabase
 pypdf
 python-docx
-supabase
+python-multipart

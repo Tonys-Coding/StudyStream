@@ -50,18 +50,25 @@ changed in the backend to make this work.
 
 ## Repository layout
 
-This project spans **two clones of the same repository**, on different branches:
+**This branch holds the whole working system — frontend and backend together.**
+Clone it and you have everything needed to run the project.
 
-| Path | Branch | Contents |
-| --- | --- | --- |
-| `Study-Feedback-Agent/` | `frontend` | The React app, root launcher, shared docs |
-| `Study-Feedback-Agent/orchestrator-work/` | `prototype-v2` | Orchestrator and all three agents |
-| `Study-Feedback-Agent/study-planning-agent-work/` | `study-planning-agent` | Standalone study-agent work |
+Development happens on separate branches, which this branch combines:
 
-`orchestrator-work/` is a nested clone, so it shows as untracked in the outer
-repo. That is expected — do not `git add` it, which would create a broken
-gitlink instead of committing the files. Commit backend changes from inside
-`orchestrator-work/`.
+| Branch | Contents |
+| --- | --- |
+| `frontend` | The React app, root launcher, shared docs |
+| `prototype-v2` | Orchestrator and all three agents |
+| `study-planning-agent` | Standalone study-agent work |
+| `final-prototype` | **This branch** — everything merged and working |
+
+On the development branches the backend is a separate clone nested inside the
+frontend checkout, so it shows as untracked there. Here it is tracked normally
+under `orchestrator-work/`.
+
+When making changes, work on the development branch that owns the code, then
+bring it into this one. Editing here directly means the change is missing from
+whichever branch a teammate is working on.
 
 ```text
 Study-Feedback-Agent/
@@ -79,7 +86,7 @@ Study-Feedback-Agent/
 │       ├── lib/                 api client, auth, courses
 │       └── pages/               AuthPage, WorkspaceView
 │
-└── orchestrator-work/           <- nested clone, prototype-v2
+└── orchestrator-work/           <- the backend
     ├── start.sh                 <- backend only
     ├── .env                     <- copy of the root .env
     ├── orchestrator/            port 8001
