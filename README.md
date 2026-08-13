@@ -1,4 +1,4 @@
-# AI Classroom Assistant
+# StudyStream: An AI Classroom Assistant
 
 A multi-agent study assistant for university courses. A student uploads their
 course material — a syllabus, lecture notes, a reading — then asks a question
