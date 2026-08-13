@@ -70,7 +70,7 @@ Study-Feedback-Agent/
 ├── .env.example
 ├── README.md
 ├── BACKEND_INTEGRATION.md
-├── Supabase_Setup.md
+├── DATABASE_SETUP.md            <- set up your own database
 │
 ├── classroom-assistant-ui/      <- React frontend, port 5173
 │   ├── .env                     <- frontend config (gitignored)
@@ -128,8 +128,13 @@ cp .env.example .env
 cp .env orchestrator-work/.env
 ```
 
-Use the Supabase **service_role** key here, not the anon key. See
-[`Supabase_Setup.md`](Supabase_Setup.md).
+Use the Supabase **service_role** key here, not the anon key.
+
+[`DATABASE_SETUP.md`](DATABASE_SETUP.md) walks through creating your own
+Supabase project from scratch — you do not need access to ours.
+
+Team members working against the shared database: that guide lives in
+`Supabase_Setup.md` on the `main` branch.
 
 **Frontend** — `classroom-assistant-ui/.env`:
 
@@ -143,8 +148,12 @@ The frontend uses the **anon** key, because it runs in the browser.
 
 ### 4. Database
 
-Run once in the Supabase SQL editor, if the shared project has not had them
-applied yet:
+**Using your own Supabase project?** Follow
+[`DATABASE_SETUP.md`](DATABASE_SETUP.md) — it has the complete schema as one
+copy-paste block, plus the keys, and takes about ten minutes.
+
+**Using the team's shared project?** It is already set up. If any of these
+have not been applied yet, run them once in the SQL editor:
 
 ```sql
 -- Optional description shown beside each uploaded file
