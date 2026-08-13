@@ -21,3 +21,7 @@ dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Old archived snapshot of the backend, superseded by orchestrator-work/.
+# Still committed on the main branch if it is ever needed.
+AI-Classroom-Assistant.zip

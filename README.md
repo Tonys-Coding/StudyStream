@@ -42,9 +42,10 @@ agents are called server-to-server and are not exposed to the browser.
 Agents fail independently — if a course has no material, the study and FAQ tabs
 report that while the quiz tab still works.
 
-See [`API_CONTRACT.md`](orchestrator-work/API_CONTRACT.md) for exact request and
-response shapes, and [`BACKEND_INTEGRATION.md`](BACKEND_INTEGRATION.md) for what
-changed in the backend to make this work.
+See [`BACKEND_INTEGRATION.md`](BACKEND_INTEGRATION.md) for what changed in the
+backend to make this work. Exact request and response shapes are in
+`orchestrator-work/API_CONTRACT.md`, which lives on the `prototype-v2` and
+`final-prototype` branches — the backend is not tracked on this branch.
 
 ---
 
