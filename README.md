@@ -1,23 +1,55 @@
-# AI Classroom Assistant
+# StudyStream
 
-A multi-agent study assistant for university courses. A student uploads their
-course material — a syllabus, lecture notes, a reading — then asks a question
-in plain language. The question goes to every assistant that can help, and each
-one's work appears in its own tab alongside a combined summary.
+StudyStream is a study helper for college classes. You upload your own course material (a syllabus, lecture notes, a reading) and ask it a question in normal words. It answers from your files instead of making things up, and if your files don't cover the question it says so.
 
-Three specialists sit behind one orchestrator:
+It started as a class project at UT Dallas, and the idea was pretty simple: studying from a syllabus and 40 pages of slides is a lot easier when something can pull out the parts that matter and quiz you on them.
 
-| Agent | What it does |
+![Sign in](docs/screenshots/01-sign-in.png)
+
+## What it does
+
+You ask one question and it goes to 3 small agents, each with its own job:
+
+| Agent | What you get |
 | --- | --- |
-| **Study Planning** | A step-by-step plan, focus topics, an estimated time to spend |
-| **Assessment** | Multiple-choice practice questions |
-| **FAQ** | Direct answers about the course — grading, deadlines, readings, policies |
+| **Study Planning** | A step-by-step plan, the topics to focus on, and about how long it should take |
+| **Assessment** | A practice quiz written from your material, with feedback under every question (green if you got it right, red if not) |
+| **FAQ** | Plain answers about the course, like grading, deadlines, and summaries of a reading in simple words |
 
-Study and FAQ answer from the student's own uploaded material using retrieval
-over embeddings, so they quote real details instead of inventing them. Both
-decline rather than guess when the material does not cover a question.
+An overview tab sums up all three, and every answer lists the files it came from.
 
----
+![Workspace](docs/screenshots/02-workspace-overview.png)
+
+![Study plan](docs/screenshots/03-study-plan.png)
+
+![Quiz feedback](docs/screenshots/04-quiz-feedback.png)
+
+Other stuff in the app:
+
+- Chat history, so you can go back to an old question and its full answer
+- A Dashboard with questions asked, quizzes finished, and your average score per subject
+- Upcoming Assignments on the Dashboard (add, edit, check off, delete). It's your own list, private to you
+- Upload `.txt`, `.pdf` or `.docx` files, with an editable description for each one
+- Works on a phone, where the sidebar turns into a drawer
+
+## Teachers, TAs and students
+
+Anyone can sign up as a student. Teachers and TAs need an invite code (set by whoever runs the app).
+
+| | Student | TA | Teacher |
+|---|---|---|---|
+| Sign up | Anyone | Invite code | Invite code |
+| Ask questions, quizzes, study plans, assignments | Yes | Yes | Yes |
+| Upload files | Private to them | Shared with the class | Shared with the class |
+| Edit or delete class files | No | Yes | Yes |
+| Create a subject | Private only | Private only | Private or **Public** |
+| Enter a teacher code | Yes | Yes | No |
+| Own teacher code to hand out | No | No | Yes (**Your class** page) |
+| Class totals on the Dashboard | No | No | Yes |
+
+How the sharing works: a teacher makes a subject **Public** with the switch when creating it, then gives students their code from the **Your class** page. A student (or TA) enters it under **Teachers** and sees the teacher's name, email and shared subjects. Those subjects show up under **Shared** in their sidebar. Teachers can also see the names and emails of everyone linked to them. Unlinking takes the subjects away again.
+
+![Teacher sharing](docs/screenshots/05-teacher-sharing.png)
 
 ## How it fits together
 
@@ -25,8 +57,8 @@ decline rather than guess when the material does not cover a question.
 Browser (React + TypeScript, :5173)
         |  POST /ask   Authorization: Bearer <supabase jwt>
         v
-Orchestrator (FastAPI, :8001)      <- the only browser-facing service
-        |  picks the relevant agents, calls them in parallel
+Orchestrator (FastAPI, :8001)      <- the only service the browser talks to
+        |  picks the agents that can help, calls them in parallel
         +---------------+---------------+
         v               v               v
    FAQ (:8000)   Assessment (:8002)  Study (:8003)
@@ -36,92 +68,48 @@ Orchestrator (FastAPI, :8001)      <- the only browser-facing service
         Supabase (pgvector) + Azure OpenAI
 ```
 
-The orchestrator verifies the Supabase JWT once, for everything. The three
-agents are called server-to-server and are not exposed to the browser.
+The orchestrator checks the Supabase login token once and the agents are only called by the orchestrator. The agents fail on their own, so if a course has no material the study and FAQ tabs say that and the quiz tab doesn't break the others.
 
-Agents fail independently — if a course has no material, the study and FAQ tabs
-report that while the quiz tab still works.
+For the answers, uploaded files get split into chunks and embedded (batches of 16, which cut the number of Azure calls a lot), and each agent looks up the closest chunks before writing anything. Exact request and response shapes are in [`orchestrator-work/API_CONTRACT.md`](orchestrator-work/API_CONTRACT.md).
 
-See [`BACKEND_INTEGRATION.md`](BACKEND_INTEGRATION.md) for what changed in the
-backend to make this work. Exact request and response shapes are in
-`orchestrator-work/API_CONTRACT.md`, which lives on the `prototype-v2` and
-`final-prototype` branches — the backend is not tracked on this branch.
-
----
-
-## Repository layout
-
-This project spans **two clones of the same repository**, on different branches:
-
-| Path | Branch | Contents |
-| --- | --- | --- |
-| `Study-Feedback-Agent/` | `frontend` | The React app, root launcher, shared docs |
-| `Study-Feedback-Agent/orchestrator-work/` | `prototype-v2` | Orchestrator and all three agents |
-| `Study-Feedback-Agent/study-planning-agent-work/` | `study-planning-agent` | Standalone study-agent work |
-
-`orchestrator-work/` is a nested clone, so it shows as untracked in the outer
-repo. That is expected — do not `git add` it, which would create a broken
-gitlink instead of committing the files. Commit backend changes from inside
-`orchestrator-work/`.
+## Folders
 
 ```text
 Study-Feedback-Agent/
-├── start.sh                     <- starts everything
-├── .env                         <- backend credentials (gitignored)
-├── .env.example
-├── README.md
-├── BACKEND_INTEGRATION.md
-├── DATABASE_SETUP.md            <- set up your own database
-│
-├── classroom-assistant-ui/      <- React frontend, port 5173
-│   ├── .env                     <- frontend config (gitignored)
-│   └── src/
-│       ├── components/          Layout, panels, materials table
-│       ├── lib/                 api client, auth, courses
-│       └── pages/               AuthPage, WorkspaceView
-│
-└── orchestrator-work/           <- nested clone, prototype-v2
-    ├── start.sh                 <- backend only
-    ├── .env                     <- copy of the root .env
-    ├── orchestrator/            port 8001
+├── start.sh                     starts everything
+├── DATABASE_SETUP.md            create your own Supabase project
+├── DATABASE_MIGRATION.sql       the extra tables (run once)
+├── DESIGN.md                    colors, fonts, the highlighter thing
+├── classroom-assistant-ui/      React frontend, port 5173
+│   └── src/ (components, lib, pages)
+└── orchestrator-work/           backend
+    ├── orchestrator/            port 8001 (routing, auth, store.py)
     ├── faq-agent/               port 8000
     ├── assessment-agent/        port 8002
-    ├── study-agent/             port 8003, also owns uploads
-    ├── shared/requirements.txt
-    └── test/test_orchestrator.py
+    ├── study-agent/             port 8003, also handles uploads
+    ├── shared/                  common.py (clients, chunking, retrieval)
+    └── test/
 ```
-
----
 
 ## Setup
 
-### Prerequisites
+You need Python 3.10+, Node 20+, and an Azure OpenAI deployment plus a Supabase project.
 
-- Python 3.10+
-- Node.js 20+
-- Access to the team's Azure OpenAI and Supabase projects
-
-### 1. Virtual environment
-
-From the project root:
+**1. Python environment** (from the project root)
 
 ```bash
 python3 -m venv .venv-1
-source .venv-1/bin/activate          # Windows: .venv-1\Scripts\activate
+source .venv-1/bin/activate
 pip install -r orchestrator-work/shared/requirements.txt
 ```
 
-### 2. Frontend dependencies
+**2. Frontend packages**
 
 ```bash
 cd classroom-assistant-ui && npm install && cd ..
 ```
 
-### 3. Credentials
-
-Two `.env` files, both gitignored. **Never commit either.**
-
-**Backend** — every agent reads `orchestrator-work/.env`:
+**3. Backend `.env`**
 
 ```bash
 cp .env.example .env
@@ -129,19 +117,9 @@ cp .env.example .env
 cp .env orchestrator-work/.env
 ```
 
-Use the Supabase **service_role** key here, not the anon key.
+Use the Supabase **service_role** key here, not the anon key. Also set `TEACHER_INVITE_CODE`. If you leave it empty nobody can sign up as a teacher or TA.
 
-Also set `TEACHER_INVITE_CODE`. Teachers and TAs can share material with a
-whole class, so signing up as one asks for this code, which you hand out
-yourself. Leave it unset and nobody can claim those roles.
-
-[`DATABASE_SETUP.md`](DATABASE_SETUP.md) walks through creating your own
-Supabase project from scratch — you do not need access to ours.
-
-Team members working against the shared database: that guide lives in
-`Supabase_Setup.md` on the `main` branch.
-
-**Frontend** — `classroom-assistant-ui/.env`:
+**4. Frontend `.env`** in `classroom-assistant-ui/`
 
 ```text
 VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -149,194 +127,53 @@ VITE_SUPABASE_ANON_KEY=your_anon_key
 VITE_API_BASE_URL=http://127.0.0.1:8001
 ```
 
-The frontend uses the **anon** key, because it runs in the browser.
+This one uses the **anon** key since it runs in the browser. Neither `.env` is committed, so don't add them.
 
-### 4. Database
+**5. Database**
 
-After the schema below, run [`DATABASE_MIGRATION.sql`](DATABASE_MIGRATION.sql)
-once in the Supabase SQL editor. It adds the `courses`, `enrollments` and
-`activity` tables that hold each student's subject list and the Dashboard's
-numbers. Until it is run, the app starts but subjects and the Dashboard
-answer with a message telling you to.
+Follow [`DATABASE_SETUP.md`](DATABASE_SETUP.md) first (about 10 minutes, one copy-paste block). Then run [`DATABASE_MIGRATION.sql`](DATABASE_MIGRATION.sql) once in the Supabase SQL editor. It adds subjects, chat history, assignments and the teacher code tables, and it's safe to run again. Until it's run the app still starts, but the pages that need those tables show a message telling you to run it.
 
-**Using your own Supabase project?** Follow
-[`DATABASE_SETUP.md`](DATABASE_SETUP.md) — it has the complete schema as one
-copy-paste block, plus the keys, and takes about ten minutes.
+**6. Supabase auth**
 
-**Using the team's shared project?** It is already set up. If any of these
-have not been applied yet, run them once in the SQL editor:
+Turn **off** email confirmation while developing (Authentication -> Providers -> Email). With it on, signup gives back a user but no session, so the profile step has no token and sign up fails.
 
-```sql
--- Optional description shown beside each uploaded file
-alter table course_materials add column if not exists description text;
-
--- Required: without this the public anon key can read and write these
--- tables directly, bypassing the orchestrator
-alter table course_materials enable row level security;
-alter table profiles enable row level security;
-```
-
-No RLS policies are needed — the backend uses the `service_role` key, which
-bypasses RLS, and the frontend never queries tables directly.
-
-### 5. Supabase auth
-
-Turn **off** email confirmation for local development
-(Authentication → Providers → Email). With it on, `signUp` returns a user but
-no session, so profile setup has no token to send and signup fails.
-
----
-
-## Running
+## Running it
 
 ```bash
 ./start.sh
 ```
 
-Starts all four backend services and the frontend dev server.
+That starts the 4 backend services and the frontend. Open <http://localhost:5173> (API docs are at <http://127.0.0.1:8001/docs>). Ctrl+C stops everything.
 
-- Frontend — <http://localhost:5173>
-- API docs — <http://127.0.0.1:8001/docs>
-
-Ctrl+C stops everything.
-
-Backend only: `./orchestrator-work/start.sh`
-Frontend only: `cd classroom-assistant-ui && npm run dev`
-
-To use a different virtual environment: `VENV=../.venv ./orchestrator-work/start.sh`
-
-### One service at a time
-
-Each service runs from inside its own folder, because the imports are flat:
-
-```bash
-cd orchestrator-work/faq-agent
-uvicorn main:app --reload --port 8000
-```
-
-Ports: FAQ 8000, Orchestrator 8001, Assessment 8002, Study 8003.
-
----
-
-## Using it
-
-1. Sign up, then pick a subject in the sidebar.
-2. Upload material — the paperclip in the chat bar, or **Upload** in the Course
-   Material table. `.txt`, `.pdf`, and `.docx` are supported.
-3. Ask a question. It goes to every assistant that can help.
-4. **Overview** holds the summary; **Study & Planning**, **FAQ**, and
-   **Assessment** hold each assistant's full work. Tabs are dimmed when that
-   assistant had nothing to add.
-
-The Course Material table at the bottom of Overview lists every uploaded file
-with an editable description, and lets you remove files.
-
-### Adding a course
-
-Use **+** beside SUBJECTS in the sidebar. Your subject list is stored in the
-browser and merged with any course the backend reports as having material, so
-uploads are never orphaned.
-
-One caveat: **quizzes** additionally need the course in `COURSE_DATA` in
-`orchestrator-work/assessment-agent/data.py`, because the assessment agent
-still reads hardcoded topics rather than Supabase. Study plans and FAQ work
-from uploaded material alone.
-
----
+Backend only is `./orchestrator-work/start.sh`, frontend only is `cd classroom-assistant-ui && npm run dev`.
 
 ## Tests
 
-With the backend running and `REQUIRE_AUTH=false` in `orchestrator-work/.env`:
+The unit tests don't need Azure or Supabase since they use a fake in-memory database (106 checks for courses, chat history, assignments, teacher codes and the role rules):
 
 ```bash
-./.venv-1/bin/python orchestrator-work/test/test_orchestrator.py
+./.venv-1/bin/python orchestrator-work/test/test_units.py
 ```
 
-14 checks covering single-agent routing, the multi-agent `/ask` fan-out, and
-the error paths. Takes about 90 seconds — most cases make real Azure calls.
+There's also `orchestrator-work/test/test_orchestrator.py`, which hits the running backend with real Azure calls (set `REQUIRE_AUTH=false` first). It takes about 90 seconds.
 
----
+## If something breaks
 
-## Troubleshooting
+- **"Could not reach the server"**: the backend isn't running. Use `./start.sh` from the root.
+- **`Address already in use`**: an old run is holding the ports. `pkill -f "uvicorn main:app"` and start again.
+- **`api_key must be set`**: `orchestrator-work/.env` is missing, so `cp .env orchestrator-work/.env`.
+- **Everything is 401**: set `REQUIRE_AUTH=false` in `orchestrator-work/.env` for local work.
+- **"No course material found"**: that subject has no files yet. Upload one.
+- **Signup fails after the account is made**: email confirmation is still on (step 6).
+- **A page says to run the migration**: run `DATABASE_MIGRATION.sql`.
 
-**"Could not reach the server at http://127.0.0.1:8001"**
-The backend is not running. Use `./start.sh` from the project root — note
-`orchestrator-work/start.sh` starts the backend only.
+## Not done yet
 
-**Services exit immediately with `Address already in use`**
-An earlier run is still holding the ports:
-`pkill -f "uvicorn main:app"`, then start again.
-
-**Agents fail to start / `api_key must be set`**
-`orchestrator-work/.env` is missing. `cp .env orchestrator-work/.env`.
-
-**Everything returns 401**
-Set `REQUIRE_AUTH=false` in `orchestrator-work/.env` for local work, or send a
-real token.
-
-**"No course material found for course_id: …"**
-That course has nothing ingested. Upload a file to it. This is correct
-behaviour — the agents refuse to invent a plan from nothing.
-
-**Signup fails after creating the account**
-Email confirmation is on, so there is no session yet. Turn it off for local
-development, or confirm the email and log in.
-
-**Uploads fail to start the service**
-`python-multipart` is missing: `pip install -r orchestrator-work/shared/requirements.txt`.
-
----
+- No rate limit, so someone could keep guessing teacher codes
+- Scanned PDFs get rejected as empty since there's no OCR
+- Teachers only see class totals, not individual student scores (on purpose, for now)
+- Google sign-in hasn't been tested
 
 ## Design
 
-The look is a study hall: a chalkboard-green rail, warm paper, a coral
-highlighter for whatever is selected. [`DESIGN.md`](DESIGN.md) records the
-tokens, the components and the rules, so a new screen matches the rest. The
-logo is `classroom-assistant-ui/public/logo.svg`.
-
----
-
-## Current state
-
-Working end to end:
-
-- Supabase auth, verified at the orchestrator, with a profile step that
-  recovers if sign-up is interrupted
-- Multi-agent fan-out with a generated overview. If Azure fails while picking
-  agents or writing the overview, the agents' results still come back.
-- RAG retrieval over uploaded material for study plans, FAQ **and quizzes**.
-  Every answer lists the files it came from.
-- Per-user material: a student's uploads are private to them, a teacher's or
-  TA's are shared with the class
-- Course material upload (batched, replaces a re-uploaded file instead of
-  duplicating it), listing, description, and removal
-- Subjects stored in the database, so they follow a student between browsers
-- Dashboard: questions asked, finished quizzes and scores per subject, and
-  class-wide totals for teachers and TAs
-- Quiz output is checked before it is shown: four distinct choices and an
-  answer that is one of them
-- Works on a phone: the sidebar becomes a drawer
-
-Not done yet:
-
-- Individual student reports for instructors (the Dashboard shows class
-  totals only, by design)
-- Rate limiting per user
-- Scanned PDFs: there is no OCR, so an image-only PDF is rejected as empty
-
-
-## Roles
-
-| | Student | TA | Teacher |
-|---|---|---|---|
-| Sign up | Anyone | Invite code | Invite code |
-| Ask questions, quizzes, study plans, assignments | Yes | Yes | Yes |
-| Upload files | Private to them | Shared with the class | Shared with the class |
-| Edit or delete class files | No | Yes | Yes |
-| Create a subject | Private only | Private only | Private or **Public** |
-| Enter a teacher code (see that teacher's Shared subjects) | Yes | Yes | No |
-| Own teacher code to hand out | No | No | Yes (**Your class** page) |
-| Class totals on the Dashboard | No | No | Yes |
-
-A **public** subject is visible only to people who entered its teacher's code,
-and shows under **Shared** in their sidebar. Unlinking removes it again.
+The look is a study hall: a chalkboard-green sidebar (UTD green), warm paper, and an orange highlighter for whatever is selected. [`DESIGN.md`](DESIGN.md) has the colors, fonts and rules so a new page matches the rest.
