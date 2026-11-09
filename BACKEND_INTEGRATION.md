@@ -1,281 +1,120 @@
-# Backend Changes for Frontend Integration
+# Backend Integration Notes
 
-A record of everything that had to change in the backend before the React
-frontend could talk to it. Written for the team, so each item says what was
-wrong, not just what changed.
+This is the write-up of what the backend does now and what had to change to get the React frontend talking to it. The backend started as 3 separate agents that only worked when you called them by hand, so most of this is stuff that broke the first time a browser touched it.
 
-The backend lives in `orchestrator-work/` on the `prototype-v2` branch. The
-frontend lives in `classroom-assistant-ui/` on the `frontend` branch.
+Everything is in `orchestrator-work/`. The frontend is in `classroom-assistant-ui/`.
 
 ---
 
-## 1. Things that stopped the backend running at all
+## How a request flows
 
-### No `.env` in `orchestrator-work/`
+1. The browser sends the Supabase login token to the orchestrator (:8001).
+2. `orchestrator/auth.py` checks the token with Supabase and works out the user id and role from it.
+3. For `/ask`, `orchestrator/summarizer.py` picks which agents can help, then the orchestrator calls them in parallel.
+4. Each agent pulls the closest chunks of course material (`shared/common.py`), writes its answer, and sends it back.
+5. The orchestrator adds a short overview, saves the question and answer to chat history, and returns everything.
 
-Every agent resolves credentials with
-`BASE_DIR = Path(__file__).resolve().parent.parent`, which lands in
-`orchestrator-work/`. No `.env` existed there, so `load_dotenv` silently did
-nothing and `AzureOpenAI(api_key=None)` raised at import. **The study and
-assessment agents could not start.**
-
-Fix: `cp .env orchestrator-work/.env`. Both files are gitignored.
-
-### `start.sh` pointed at a venv that did not exist
-
-It ran `source venv/bin/activate`; the actual environment is `.venv-1` at the
-project root. It also used `trap 'kill 0'`, which signals the whole process
-group — **Ctrl+C killed the user's terminal** along with the services.
-
-Now: resolves its own directory so it works from any cwd, takes a `VENV`
-override, fails loudly if `.env` or the venv is missing, and tracks child PIDs
-so it stops only what it started.
-
-There was also no launcher at the project root, so `./start.sh` from
-`Study-Feedback-Agent/` failed with "no such file". Added `start.sh` at the
-root that starts the backend **and** the frontend.
-
-### `python-multipart` was missing
-
-FastAPI requires it for `Form` and `UploadFile`. Without it the orchestrator
-and study agent crash at startup once upload endpoints exist. Added to
-`shared/requirements.txt`.
+The 3 agents (FAQ :8000, Assessment :8002, Study :8003) are only called by the orchestrator. They aren't set up for browser access.
 
 ---
 
-## 2. Things the browser specifically needed
+## 1. Stuff that stopped the backend from starting
 
-### CORS
+**No `.env` in `orchestrator-work/`.** Every agent loads `orchestrator-work/.env`, so with no file there `AzureOpenAI(api_key=None)` crashed on import. Fix is `cp .env orchestrator-work/.env`. Both `.env` files are gitignored.
 
-Not one service had `CORSMiddleware`. Every browser request would have failed
-at preflight. Added to the **orchestrator only** — the three agents are called
-server-to-server and should not be reachable from a browser.
+**`start.sh` used a venv that didn't exist, and Ctrl+C closed the whole terminal.** It used `trap 'kill 0'`, which signals the whole process group. Now it finds its own folder, takes a `VENV` override, complains if `.env` or the venv is missing, and only stops the processes it started. There's also a `start.sh` at the project root that starts the backend and the frontend together.
 
-Allowed origins come from `FRONTEND_ORIGINS`, defaulting to
-`http://localhost:5173,http://127.0.0.1:5173`.
+**`python-multipart` was missing.** FastAPI needs it for file uploads, and without it the orchestrator and study agent crash on startup. It's in `shared/requirements.txt` now.
 
-### Authentication
+---
 
-The orchestrator had none. It read `user_id` from the request body and trusted
-it, while the frontend already held a Supabase JWT.
+## 2. Stuff the browser needed
 
-Added `orchestrator/auth.py`, which verifies the bearer token with Supabase and
-derives `user_id` from it. **A `user_id` in the request body is now ignored
-whenever a token is present.**
+**CORS.** None of the services had it, so every browser request failed at preflight. It's only on the orchestrator (the agents shouldn't be reachable from a browser). Allowed origins come from `FRONTEND_ORIGINS` and default to `http://localhost:5173,http://127.0.0.1:5173`.
 
-This was ported from `study-planning-agent-work/auth.py`, which could never
-have worked — it did:
+**Real authentication.** The orchestrator used to read `user_id` from the request body and trust it. Now `auth.py` verifies the bearer token with Supabase and the user id comes from that. If a token is sent, a `user_id` in the body is ignored.
 
-```python
-SUPABASE_KEY = os.getenv("SUPABASE_URL")   # assigned into the wrong name
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")   # immediately overwritten
-supabase = create_client(SUPABASE_KEY, SUPABASE_KEY)   # key passed as the URL
-```
+`REQUIRE_AUTH=false` lets you call the API without a token for local testing (`/docs` and the test script need this). It defaults to **true** and prints a warning at startup when it's off. Never leave it off on a real deployment, since any request could then claim to be any user.
 
-Also relaxed: a missing `profiles` row yields `role: None` instead of a 404.
-The table is empty, so the original would have locked out every user.
-
-`REQUIRE_AUTH=false` allows unauthenticated calls for local development, so
-`/docs` and the test script work without minting a token. It defaults to
-**true** in code and prints a warning at startup when off.
-
-### A uniform error shape
-
-Agents returned FastAPI's `{"detail": ...}`, transport failures surfaced as
-opaque 500s, and validation errors used a third shape. The frontend had three
-formats to handle.
-
-Every failure leaving the orchestrator is now:
+**One error shape.** Agents returned `{"detail": ...}`, network failures were plain 500s, and validation errors were a third format. Now every failure from the orchestrator looks like this:
 
 ```json
 { "success": false, "message": "Study Agent: No course material found for CS2336." }
 ```
 
-Status codes pass through from whichever agent failed: 400 bad input, 401 auth,
-404 no material, 413 too large, 429 rate limited, 503 agent down, 504 timeout.
-
-`orchestrator/agents.py` gained a shared `_post()` that unwraps each agent's
-`detail` and maps connection and timeout errors to real codes. Previously a 404
-from the study agent reached the browser as an unexplained 500.
+Status codes carry through from whichever agent failed (400, 401, 404, 413, 429, 503, 504). The messages are written for the student, so they say "The AI service is busy right now. Try again in a moment." and not a stack trace.
 
 ---
 
-## 3. API changes the frontend depends on
+## 3. The API right now
 
-### `POST /chat` — one agent
-
-Added an optional `agent` field that skips keyword routing entirely.
-
-This matters because the keyword chain checks study words before quiz words, so
-*"practice quiz for the final"* routed to **study**. With dedicated UI, the
-frontend already knows which agent it wants and should not have to phrase its
-way around a keyword table. The keyword path still works when `agent` is
-omitted.
-
-Agent labels were normalised to slugs (`"study"`, not `"Study Agent"`) so the
-frontend can switch on them. `num_questions` is threaded through instead of
-being hardcoded to 5.
-
-### `POST /ask` — every relevant agent at once
-
-New. Backs the workspace UI: one question, fanned out to whichever agents help,
-plus a generated overview.
-
-- `orchestrator/summarizer.py` picks the agents and writes the overview
-- Agents run in parallel via `ThreadPoolExecutor`
-- **Agents fail independently.** Each entry is either
-  `{"success": true, "response": ...}` or `{"success": false, "message": ...}`,
-  and the top-level status stays 200. One course lacking material cannot sink
-  the request.
-- Falls back to the keyword rules if the model returns something unparseable
-
-Selection is deliberately biased: broad preparation questions fan out to all
-three, while a narrow factual question ("when are office hours?") stays on
-`faq` alone rather than having a study plan bolted onto it.
-
-### Other endpoints
-
-| Endpoint | Why |
+| Endpoint | What it does |
 | --- | --- |
-| `POST /profile/setup` | The signup flow called it and it did not exist here — signup 404'd |
-| `GET /materials/{course_id}` | Lists uploaded files; tells the UI whether a course can answer anything |
-| `POST /materials/upload` | `.txt`, `.pdf`, `.docx`, size-capped |
-| `DELETE /materials/{course_id}?source=` | Removes a file and every chunk from it |
-| `PATCH /materials/{course_id}` | Optional editable description |
-| `GET /courses` | Courses that have material, so uploads are never orphaned |
+| `POST /ask` | One question goes to every agent that can help, plus an overview. Also saves the answer to chat history and returns a `session_id` |
+| `POST /chat` | One agent only (optional `agent` field skips the keyword routing) |
+| `GET /sessions`, `GET /sessions/{id}`, `DELETE /sessions/{id}` | Chat history for a subject |
+| `GET /materials/{course_id}` | Files uploaded to a subject |
+| `POST /materials/upload` | `.txt`, `.pdf`, `.docx`, capped by `MAX_UPLOAD_MB` (10 by default) |
+| `PATCH /materials/{course_id}` | Edit a file's description |
+| `DELETE /materials/{course_id}?source=` | Remove a file and all its chunks |
+| `GET /me`, `POST /profile/setup` | Who you are and first-time profile creation |
+| `GET /courses`, `POST /courses`, `DELETE /courses/{id}` | Your subjects. `POST` takes `public` (teachers only) |
+| `POST /activity/quiz` | Saves a finished quiz score |
+| `GET /dashboard` | Totals per subject, recent activity, class totals for teachers |
+| `GET/POST/PATCH/DELETE /assignments` | The Upcoming Assignments list |
+| `GET /teacher/code`, `GET /teacher/roster` | A teacher's code and the people linked to them |
+| `GET /teachers`, `POST /teachers/link`, `DELETE /teachers/{id}` | What a student or TA sees: enter a code, list teachers, unlink |
 
-`/profile/setup` takes a JSON body rather than query parameters — full names
-contain spaces.
+The exact request and response shapes are in [`orchestrator-work/API_CONTRACT.md`](orchestrator-work/API_CONTRACT.md).
 
----
+### Agents fail on their own
 
-## 4. Bugs found while wiring things up
+`/ask` always returns 200 and each agent entry is either `{"success": true, "response": ...}` or `{"success": false, "message": ...}`. One subject missing files doesn't sink the whole request. The agent picking is on purpose a little picky: broad "help me prepare" questions go to all 3, but something narrow like "when are office hours?" stays on FAQ only. If the model's pick can't be parsed it falls back to the keyword rules, and the FAQ agent always runs so summaries and "explain it simply" questions get an answer.
 
-These were pre-existing and unrelated to the frontend, but they made the
-integration produce wrong output.
+### Roles
 
-### The study agent invented plans out of nothing
+Students upload files that are private to them. Teachers and TAs upload files shared with the class, and only they can edit or delete class files. Signing up as a teacher or TA needs `TEACHER_INVITE_CODE`. If that isn't set, nobody can claim those roles.
 
-`get_course_context` always returns a dict, so `if not course_context:` was
-never true. An empty retrieval went straight to the model.
-
-Live consequences before the fix:
-
-- **CS2336**, with zero material, returned **200 and a confident generic study
-  plan**
-- **CS3354** returned a plan advising the student to *"review the essentials.json
-  file thoroughly to understand all core concepts"* — invented from a
-  `.gitignore` that had been uploaded during testing
-
-A student had no way to tell those from real plans. Now checks
-`content_chunks` and returns 404. Note `data.py` already had a
-`course_has_content()` helper for exactly this — defined, never called.
-
-### Blank goals returned 500 instead of 400
-
-The empty-goal check ran *after* `get_course_context`, which raises
-`ValueError` on an empty goal. Moved ahead of retrieval.
-
-### PDF and DOCX upload raised `NameError`
-
-`extract_text_from_file` called `pypdf.PdfReader` and `Document` without
-importing either. Only `.txt` would ever have worked.
-
-### Uploads recorded the wrong filename
-
-`ingest_file` used `Path(file_path).name` on the spooled temp file, so material
-was stored under names like `tmphcdtt92o.txt`. That is exactly where the junk
-rows in the database came from. It now takes the uploaded name.
-
-### Every study request embedded the goal twice
-
-`main.py` fetched the context, then `agent.py` fetched it again — two Azure
-embedding calls and two vector searches per request. `study_and_plan_agent` now
-receives the context.
-
-### The FAQ agent was a stub
-
-It returned `f"Received question: {question}"`. Replaced with a RAG-backed
-agent that answers only from retrieved material and declines when the material
-does not cover the question. It takes `course_id` so retrieval can be scoped,
-which the orchestrator was not sending.
+Only teachers can make a subject **public**, and a public subject is only visible to people who entered that teacher's code. The code is 8 characters (shown like `ABCD-2345`) with the look-alike characters left out (no `0`, `O`, `1`, `I`, `L`). Unlinking also removes the person from that teacher's public subjects.
 
 ---
 
-## 5. Database changes
+## 4. Bugs that showed up while wiring it together
 
-### Mislabelled course material
+These had nothing to do with the frontend, but they made the app give wrong answers.
 
-`sample.txt` is a **HIST 301 time-travel syllabus** but was ingested under
-`course_id = "CS3354"`. Asking CS3354 (Software Engineering) for a study plan
-returned Einstein and the Grandfather Paradox, while the quiz agent — reading
-its hardcoded topics — talked about Requirements Engineering. Same course, two
-unrelated subjects.
+- **The study agent made up plans from nothing.** `get_course_context` always returns a dict, so `if not course_context:` was never true and an empty search went straight to the model. A subject with 0 files got a confident generic study plan. It now checks `content_chunks` and returns a 404.
+- **Blank goals gave a 500.** The empty check ran after retrieval, which crashes on an empty goal. Moved it before.
+- **PDF and DOCX uploads crashed.** `extract_text_from_file` used `pypdf` and `Document` without importing them, so only `.txt` ever worked.
+- **Uploads were saved under the temp filename** (stuff like `tmphcdtt92o.txt`) instead of the real name.
+- **Every study request embedded the goal twice.** Two Azure calls and two vector searches per request. It's one now.
+- **The FAQ agent was a stub** that returned `Received question: ...`. It now does retrieval and only answers from the material, and says so when the material doesn't cover it.
+- **Quizzes were hardcoded.** The assessment agent used a fixed list of topics per course. It now builds questions from the retrieved material, checks that each one has 4 different choices and an answer that is one of them, and writes a short explanation for every question (that's what shows up in green or red under each question).
+- **The auth helper from the early prototype could never work.** It put the key in the URL's place:
 
-Relabelled to `HIST301` with `UPDATE` rather than re-ingesting, since
-embeddings are content-derived and stayed valid. `HIST301` was added to
-`assessment-agent/data.py` so both agents describe the same course.
-
-### Junk rows removed
-
-Six chunks of a duplicated `.gitignore`, uploaded twice while testing the
-upload path. They were why CS3354 produced nonsense.
-
-### Optional `description` column
-
-```sql
-alter table course_materials add column if not exists description text;
+```python
+SUPABASE_KEY = os.getenv("SUPABASE_URL")   # wrong name
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")   # overwrites it
+supabase = create_client(SUPABASE_KEY, SUPABASE_KEY)   # key used as the URL
 ```
 
-Additive and nullable. Without it the materials table still lists every file;
-descriptions just cannot be saved, and the API says so rather than failing
-silently.
+---
 
-### Row level security
+## 5. Things that were fixed in the database
 
-`course_materials` and `profiles` had RLS **disabled**, so the `anon` key —
-which ships inside the frontend bundle and is fully public — could read and
-write them directly, bypassing the orchestrator. Writable was the serious part:
-anyone could insert rows and poison the RAG, since injected text is retrieved
-and fed to the model as trusted course material.
+- **Row level security was off** on `course_materials` and `profiles`. The `anon` key ships inside the frontend, so anyone could read or write those tables directly. Writing was the bad part, since text someone inserted would be retrieved and given to the model as trusted course material. RLS is now on for every table with no policies (see `DATABASE_SETUP.md` for why).
+- **Mislabeled course material.** A syllabus for a different course had been uploaded under the wrong `course_id`, so asking about one course returned the other one's content. Fixed with an `UPDATE`. Embeddings come from the content, so there was no need to re-embed.
+- **Junk chunks** from test uploads were deleted. They were making one subject's plans come out as nonsense.
+- **New tables** for subjects, enrollments, activity, chat history, assignments and teacher codes (`DATABASE_MIGRATION.sql`).
+- **Per-user retrieval.** The search function has a version that takes the requesting user, so class material is shared and private material only shows up for whoever uploaded it.
 
-```sql
-alter table course_materials enable row level security;
-alter table profiles enable row level security;
-```
+If a table or column from the migration is missing, the API answers with a message telling you to run it instead of a raw database error.
 
-No policies are needed. The frontend only ever calls `supabase.auth.*` and
-never queries a table, and the backend uses the `service_role` key, which
-bypasses RLS.
-
-### Suggested, not yet applied
-
-```sql
-create index if not exists course_materials_course_source_idx
-  on course_materials (course_id, source);
-```
-
-Every material query filters on `course_id`; deletes and updates filter on
-`(course_id, source)`. Irrelevant at current size, worth having before a class
-uploads real material.
-
-Also worth confirming in the dashboard that `embedding` has a vector index
-(`ivfflat` or `hnsw`) — without one, similarity search is a full scan.
+Still worth doing later: confirm `embedding` has a vector index (`ivfflat` or `hnsw`), because without one a similarity search reads every row.
 
 ---
 
 ## 6. Tests
 
-`test/test_orchestrator.py` sent only `{"message": ...}`, so every request was
-a guaranteed 422 once `user_id` and `course_id` became required. It also
-asserted nothing — it printed responses and always "passed".
-
-Now 14 assertions covering `/ask`, single-agent routing, explicit-agent
-override, and the error paths, with a pass/fail count and a non-zero exit code.
-
-It discovers an empty course at runtime rather than hardcoding one. An earlier
-version pinned `CS2336`, which broke the moment someone uploaded a file to it —
-the failure looked like a code regression but was a stale fixture.
-
-Run with `REQUIRE_AUTH=false` in `orchestrator-work/.env`, since the script
-sends no token.
+- `test/test_units.py` (106 checks) needs no Azure or Supabase. It uses a fake in-memory database to test chunking, JSON parsing, chat history, assignments, teacher codes, public subjects and the role rules. The teacher code test caught one real bug: unlinking a student left them enrolled in that teacher's public subjects.
+- `test/test_orchestrator.py` calls the running backend with real Azure calls and takes about 90 seconds. It finds an empty subject at runtime instead of hardcoding one (an earlier version used a fixed course, which broke the moment somebody uploaded a file to it and looked like a code bug). Run it with `REQUIRE_AUTH=false` since it sends no token.

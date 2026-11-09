@@ -70,7 +70,7 @@ Orchestrator (FastAPI, :8001)      <- the only service the browser talks to
 
 The orchestrator checks the Supabase login token once and the agents are only called by the orchestrator. The agents fail on their own, so if a course has no material the study and FAQ tabs say that and the quiz tab doesn't break the others.
 
-For the answers, uploaded files get split into chunks and embedded (batches of 16, which cut the number of Azure calls a lot), and each agent looks up the closest chunks before writing anything. Exact request and response shapes are in [`orchestrator-work/API_CONTRACT.md`](orchestrator-work/API_CONTRACT.md).
+For the answers, uploaded files get split into chunks and embedded (batches of 16, which cut the number of Azure calls a lot), and each agent looks up the closest chunks before writing anything. Exact request and response shapes are in [`orchestrator-work/API_CONTRACT.md`](orchestrator-work/API_CONTRACT.md), and [`BACKEND_INTEGRATION.md`](BACKEND_INTEGRATION.md) explains how the backend works and the bugs we hit getting the frontend connected.
 
 ## Folders
 
@@ -79,6 +79,7 @@ Study-Feedback-Agent/
 ├── start.sh                     starts everything
 ├── DATABASE_SETUP.md            create your own Supabase project
 ├── DATABASE_MIGRATION.sql       the extra tables (run once)
+├── BACKEND_INTEGRATION.md       what the backend does and what we had to fix
 ├── DESIGN.md                    colors, fonts, the highlighter thing
 ├── classroom-assistant-ui/      React frontend, port 5173
 │   └── src/ (components, lib, pages)
