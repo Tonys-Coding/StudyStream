@@ -7,7 +7,7 @@ this explains why they are what they are.
 
 ## The idea
 
-A study hall. A chalkboard-green rail sits beside warm paper. A coral
+A study hall. A chalkboard-green rail sits beside warm paper. An orange
 highlighter marks whatever you are on, and a red pen marks what is wrong.
 
 This is a tool people use to get something done, so the world supplies four
@@ -41,7 +41,7 @@ Each colour means one thing.
 | `sheet`, `sheet-2` | Panels and inputs, and the subtle fill behind them |
 | `rule` | Hairline borders. `line` is the stronger border for controls (3.7:1) |
 | `ink`, `ink-2`, `ink-3` | Text: primary, secondary, tertiary. All pass 4.5:1 on paper |
-| `hl`, `hl-soft`, `amber` | The marker (and the logo's stream) |
+| `hl`, `hl-soft`, `hl-wash`, `amber` | The marker: full orange for a selection, a light wash behind running text (and the logo's stream) |
 | `red`, `red-soft` | Red pen: wrong answers, errors, destructive actions |
 | `ok`, `ok-soft` | Correct, and a confirmation |
 | `blue` | Fountain pen: the focus ring and links |
@@ -115,21 +115,21 @@ of it is disabled under `prefers-reduced-motion`.
 `public/logo.svg`: a pencil whose lead leaves a stream behind it. It is
 transparent, drawn in solid shapes so it holds at favicon size, and the dark
 parts follow `currentColor` in `src/components/Logo.tsx` so it works on both
-the chalkboard and the paper. The coral never changes. `public/favicon.svg`
+the chalkboard and the paper. The orange never changes. `public/favicon.svg`
 is the same mark without the faint second wave.
 
 ## Browser surfaces
 
 The parts a design usually forgets are themed too: text selection is the
-marker coral, the caret and focus ring are fountain-pen blue, scrollbars are
+marker orange, the caret and focus ring are fountain-pen blue, scrollbars are
 thin and use the border colour.
 
 
 ## Added later
 
-- **Chalk colour.** The marker is coral chalk (`--color-hl`), not yellow: it
+- **Marker colour.** The marker is UTD orange (`--color-hl`), not yellow: it
   reads on the green rail and on paper, and stays clear of the red pen used
-  for errors. The logo's stream uses the same coral.
+  for errors. The logo's stream uses the same orange.
 - **Softer shapes.** Controls, panels and tags take their radii from three
   tokens (`--radius-ctl`, `--radius-panel`, `--radius-tag`), and primary
   buttons and panels carry a light lift. This is the part borrowed from the
@@ -137,8 +137,8 @@ thin and use the border colour.
   re-theming is an edit to `index.css`. Astryx itself is not installed; it
   brings its own reset and StyleX build, which would fight Tailwind.
 - **Sign-in hero.** The mark is the hero of the chalkboard panel, with the
-  stream drawn in once on load (`Logo draw`) and faint notebook rules behind
-  it (`ruled`).
+  stream drawn in once on load (`Logo draw`) and faint wavy lines behind
+  it, drawn from the same curve as the logo's stream (`ruled`).
 - **Chat history.** Every question is saved with its full answer
   (`chat_sessions`). History lists a subject's past chats and reopens one
   exactly as it was. Switching subjects mounts a fresh workspace.
@@ -154,3 +154,13 @@ subject, the tab underline) and a light wash (`--color-hl-wash`) where it sits
 behind running text, such as the Focus topics and the Dashboard average, so
 the text stays easy to read. The page itself never scrolls: the app fills the
 window and each pane scrolls inside it.
+
+## Shared subjects and teachers
+
+Teachers can mark a subject **Public** with a switch when they create it.
+Public subjects show up for linked students and TAs under a **Shared** heading
+in the rail, kept apart from their own **Subjects** so it is clear what is
+theirs. The **Teachers** page (students and TAs) and **Your class** page
+(teachers) use the same panels and tables as the rest of the app, with no new
+colours: a teacher code is plain text in a panel, and the roster is a normal
+table.
