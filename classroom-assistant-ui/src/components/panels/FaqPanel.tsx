@@ -1,4 +1,7 @@
+import { MessageCircleQuestion } from "lucide-react";
 import type { FaqResponse } from "@/lib/api";
+import Panel from "@/components/ui/Panel";
+import SourceList from "./SourceList";
 
 interface Props {
   data: FaqResponse;
@@ -7,34 +10,20 @@ interface Props {
 
 export default function FaqPanel({ data, question }: Props) {
   return (
-    <div className="paper-card rounded-xl p-8">
-      <div className="flex items-center gap-3 mb-6">
-        <span className="material-symbols-outlined filled text-primary text-[28px]">
-          quiz
-        </span>
-        <h2 className="font-headline-lg text-headline-lg text-on-surface">
-          Course Answer
-        </h2>
+    <Panel title="Answer" icon={MessageCircleQuestion}>
+      <p className="text-meta font-medium text-ink-2">You asked</p>
+      <p className="mt-1 text-body font-medium text-ink">{question}</p>
+
+      <div className="mt-5 border-t border-rule pt-5">
+        <p className="prose-read whitespace-pre-wrap text-ink">{data.answer}</p>
       </div>
 
-      <p className="text-label-sm text-on-surface-variant uppercase mb-2">
-        You asked
-      </p>
-      <p className="font-title-md text-title-md text-on-surface mb-6 pl-4 border-l-2 border-primary">
-        {question}
-      </p>
+      <SourceList sources={data.sources} label="Answered from" />
 
-      <p className="text-label-sm text-on-surface-variant uppercase mb-2">
-        Answer
+      <p className="mt-6 text-meta text-ink-2">
+        Answers come only from your course material. If something looks wrong,
+        check with your instructor.
       </p>
-      <p className="font-body-notebook text-body-notebook text-on-surface-variant leading-relaxed whitespace-pre-wrap">
-        {data.answer}
-      </p>
-
-      <p className="text-label-sm text-outline mt-8 pt-4 border-t border-chalkboard-border">
-        Answered from your course material. If something looks wrong, check
-        with your instructor.
-      </p>
-    </div>
+    </Panel>
   );
 }

@@ -1,4 +1,7 @@
+import { ChevronRight } from "lucide-react";
 import type { AskResponse } from "@/lib/api";
+import Notice from "@/components/ui/Notice";
+import Panel from "@/components/ui/Panel";
 import { TAB_META, type TabId } from "./tabs";
 
 interface Props {
@@ -6,122 +9,97 @@ interface Props {
   onJumpToTab: (tab: TabId) => void;
 }
 
-/** Highlight chips summarizing what each agent produced. */
-function highlights(result: AskResponse): { tab: TabId; label: string }[] {
-  const out: { tab: TabId; label: string }[] = [];
+function hours(n: number): string {
+  return Number.isInteger(n) ? String(n) : n.toFixed(1);
+}
+
+/** One line per finished result, saying what is in it. */
+function ready(result: AskResponse): { tab: TabId; detail: string }[] {
+  const out: { tab: TabId; detail: string }[] = [];
 
   const study = result.agents.study;
   if (study?.success) {
+    const { study_plan, estimated_hours } = study.response;
     out.push({
       tab: "study",
-      label: `${study.response.study_plan.length} study steps`,
+      detail:
+        `${study_plan.length} steps` +
+        (estimated_hours !== null ? `, about ${hours(estimated_hours)} hours` : ""),
     });
-    if (study.response.estimated_hours !== null) {
-      out.push({
-        tab: "study",
-        label: `${study.response.estimated_hours} hours estimated`,
-      });
-    }
+  }
+
+  const faq = result.agents.faq;
+  if (faq?.success) {
+    out.push({ tab: "faq", detail: "A direct answer from your course material" });
   }
 
   const quiz = result.agents.quiz;
   if (quiz?.success) {
     out.push({
       tab: "assessment",
-      label: `${quiz.response.questions.length} practice questions`,
+      detail: `${quiz.response.questions.length} multiple-choice questions`,
     });
-  }
-
-  const faq = result.agents.faq;
-  if (faq?.success) {
-    out.push({ tab: "faq", label: "Course answer available" });
   }
 
   return out;
 }
 
 export default function OverviewPanel({ result, onJumpToTab }: Props) {
-  const chips = highlights(result);
+  const items = ready(result);
 
   const failures = (["study", "quiz", "faq"] as const)
     .map((slug) => ({ slug, entry: result.agents[slug] }))
     .filter((x) => x.entry && !x.entry.success);
 
   return (
-    <>
-      <div className="paper-card rounded-xl p-8 mb-8">
-        <div className="flex items-center gap-3 mb-4">
-          <span className="material-symbols-outlined filled text-primary text-[28px]">
-            auto_awesome
-          </span>
-          <h2 className="font-headline-lg text-headline-lg text-on-surface">
-            Overview
-          </h2>
-        </div>
+    <div className="space-y-4">
+      <Panel title="Overview" subtitle={`You asked: ${result.query}`}>
+        <p className="prose-read text-ink">{result.overview}</p>
 
-        <p className="font-body-notebook text-body-notebook text-on-surface-variant max-w-4xl leading-relaxed mb-6">
-          {result.overview}
-        </p>
+        {items.length > 0 && (
+          <ul className="mt-6 divide-y divide-rule border-y border-rule">
+            {items.map(({ tab, detail }) => {
+              const meta = TAB_META[tab];
 
-        {chips.length > 0 && (
-          <div className="flex gap-2 flex-wrap">
-            {chips.map((chip) => (
-              <button
-                key={chip.label}
-                onClick={() => onJumpToTab(chip.tab)}
-                className="px-3 py-1 bg-scholar-gold-muted text-secondary rounded-full font-label-sm text-label-sm border border-secondary/20 hover:border-secondary/50 transition-colors"
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
+              return (
+                <li key={tab}>
+                  <button
+                    onClick={() => onJumpToTab(tab)}
+                    className="group flex w-full items-center gap-3 py-3 text-left transition-colors duration-150 hover:bg-sheet-2/60"
+                  >
+                    <meta.icon className="ml-1 size-5 shrink-0 text-ink-2" aria-hidden />
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-body font-medium text-ink">
+                        {meta.label}
+                      </span>
+                      <span className="block text-ui text-ink-2">{detail}</span>
+                    </span>
+                    <ChevronRight
+                      className="mr-1 size-5 shrink-0 text-ink-3 transition-transform duration-150 group-hover:translate-x-0.5"
+                      aria-hidden
+                    />
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
         )}
-      </div>
-
-      {/* Cards for each tab that has content, so the overview is a hub */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {result.selected_agents
-          .filter((slug) => result.agents[slug]?.success)
-          .map((slug) => {
-            const meta = TAB_META[slug === "quiz" ? "assessment" : slug];
-
-            return (
-              <button
-                key={slug}
-                onClick={() => onJumpToTab(meta.id)}
-                className="paper-card paper-card-interactive rounded-xl p-5 text-left"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="material-symbols-outlined text-primary">
-                    {meta.icon}
-                  </span>
-                  <h3 className="font-title-md text-title-md text-on-surface">
-                    {meta.label}
-                  </h3>
-                </div>
-                <p className="text-label-sm text-on-surface-variant">
-                  {meta.blurb}
-                </p>
-              </button>
-            );
-          })}
-      </div>
+      </Panel>
 
       {failures.length > 0 && (
-        <div className="mt-8 rounded-xl border border-error/30 bg-error-container/40 p-5">
-          <h3 className="font-title-md text-title-md text-on-error-container mb-2">
-            Not available for this question
-          </h3>
+        <Notice tone="error" title="Not available for this question">
           <ul className="space-y-1">
             {failures.map(({ slug, entry }) => (
-              <li key={slug} className="text-label-sm text-on-surface-variant">
-                <span className="font-medium capitalize">{slug}</span>:{" "}
+              <li key={slug}>
+                <span className="font-medium text-ink">
+                  {TAB_META[slug === "quiz" ? "assessment" : slug].label}:
+                </span>{" "}
                 {entry && !entry.success ? entry.message : ""}
               </li>
             ))}
           </ul>
-        </div>
+        </Notice>
       )}
-    </>
+    </div>
   );
 }
