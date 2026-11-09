@@ -1,34 +1,47 @@
 import { useState } from "react";
 import {
+  Check,
+  FileText,
+  FolderOpen,
+  Pencil,
+  Trash2,
+  Upload,
+  X,
+} from "lucide-react";
+import {
   deleteMaterial,
   fileTypeOf,
   updateMaterialDescription,
   SUPPORTED_EXTENSIONS,
   type Material,
+  type Role,
 } from "@/lib/api";
+import Button, { IconButton } from "@/components/ui/Button";
+import EmptyState from "@/components/ui/EmptyState";
+import { TextInput } from "@/components/ui/form";
+import Notice from "@/components/ui/Notice";
+import Panel from "@/components/ui/Panel";
+import Skeleton from "@/components/ui/Skeleton";
+import { Table, Td, Th } from "@/components/ui/Table";
+import Tag from "@/components/ui/Tag";
 
 interface Props {
   courseId: string;
-  courseName: string;
+  role: Role | null;
   materials: Material[];
   loading: boolean;
   onUpload: () => void;
   onChanged: () => void;
 }
 
-const FILE_ICONS: Record<string, string> = {
-  PDF: "picture_as_pdf",
-  DOCX: "description",
-  TXT: "article",
-};
-
-function iconFor(source: string): string {
-  return FILE_ICONS[fileTypeOf(source)] ?? "draft";
+/** The same file name can be a shared file and someone's private copy. */
+function keyOf(m: Material): string {
+  return `${m.visibility}:${m.source}`;
 }
 
 export default function MaterialsTable({
   courseId,
-  courseName,
+  role,
   materials,
   loading,
   onUpload,
@@ -38,19 +51,23 @@ export default function MaterialsTable({
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [confirmingDelete, setConfirmingDelete] = useState<string | null>(null);
+  const [confirmingDelete, setConfirmingDelete] = useState<Material | null>(
+    null,
+  );
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  const isStaff = role === "teacher" || role === "ta";
 
   // In-progress edits and pending confirmations are cleared by remounting:
   // the caller passes key={courseId}, so switching subjects gives this a
   // fresh state and a confirm can never land on the wrong file.
 
-  async function remove(source: string) {
-    setDeleting(source);
+  async function remove(m: Material) {
+    setDeleting(keyOf(m));
     setError("");
 
     try {
-      await deleteMaterial(courseId, source);
+      await deleteMaterial(courseId, m.source, m.visibility);
       setConfirmingDelete(null);
       onChanged();
     } catch (err) {
@@ -61,17 +78,17 @@ export default function MaterialsTable({
   }
 
   function beginEdit(m: Material) {
-    setEditing(m.source);
+    setEditing(keyOf(m));
     setDraft(m.description ?? "");
     setError("");
   }
 
-  async function save(source: string) {
+  async function save(m: Material) {
     setSaving(true);
     setError("");
 
     try {
-      await updateMaterialDescription(courseId, source, draft);
+      await updateMaterialDescription(courseId, m.source, draft, m.visibility);
       setEditing(null);
       onChanged();
     } catch (err) {
@@ -82,214 +99,186 @@ export default function MaterialsTable({
   }
 
   return (
-    <div className="paper-card rounded-xl p-8 mt-8">
-      <div className="flex items-center justify-between gap-4 flex-wrap mb-1">
-        <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined filled text-primary text-[28px]">
-            folder_open
-          </span>
-          <h2 className="font-headline-lg text-headline-lg text-on-surface">
-            Course Material
-          </h2>
-        </div>
-
-        <button
-          onClick={onUpload}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-on-primary rounded-full font-title-md text-title-md hover:bg-on-primary-fixed-variant transition-colors"
-        >
-          <span className="material-symbols-outlined text-[20px]">
-            upload_file
-          </span>
+    <Panel
+      title="Course material"
+      icon={FolderOpen}
+      subtitle={
+        isStaff
+          ? `Files you upload are shared with everyone in ${courseId}.`
+          : "Files you upload are private to you. Files from your teacher are shared with the class."
+      }
+      actions={
+        <Button icon={Upload} onClick={onUpload}>
           Upload
-        </button>
-      </div>
-
-      <p className="text-label-sm text-on-surface-variant mb-6">
-        Files {courseName} draws on when answering. Supported formats:{" "}
-        {SUPPORTED_EXTENSIONS.join(", ")}
+        </Button>
+      }
+      flush
+    >
+      <p className="px-5 pt-4 text-meta text-ink-2 md:px-6">
+        Supported formats: {SUPPORTED_EXTENSIONS.join(", ")}.
       </p>
 
       {error && (
-        <div className="rounded-xl border border-error/40 bg-error-container/50 p-4 mb-4">
-          <p className="text-body-md text-on-error-container">{error}</p>
+        <div className="px-5 pt-4 md:px-6">
+          <Notice tone="error">{error}</Notice>
         </div>
       )}
 
       {loading && (
-        <p className="text-body-md text-on-surface-variant">Loading…</p>
+        <div className="space-y-3 p-5 md:p-6" role="status" aria-label="Loading files">
+          <Skeleton className="h-5 w-2/3" />
+          <Skeleton className="h-5 w-1/2" />
+        </div>
       )}
 
       {!loading && materials.length === 0 && (
-        <div className="rounded-xl border border-chalkboard-border bg-surface-container-low p-5">
-          <p className="text-body-md text-on-surface-variant">
-            Nothing uploaded for {courseId} yet. Add a syllabus, lecture notes,
-            or a reading so this subject can answer questions.
-          </p>
+        <div className="p-5 md:p-6">
+          <EmptyState
+            title={`Nothing uploaded for ${courseId} yet`}
+            action={
+              <Button variant="primary" icon={Upload} onClick={onUpload}>
+                Upload a file
+              </Button>
+            }
+          >
+            Add a syllabus, lecture notes or a reading. Study plans, answers
+            and quizzes are written from what you upload.
+          </EmptyState>
         </div>
       )}
 
       {!loading && materials.length > 0 && (
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+        <div className="mt-4 border-t border-rule">
+          <Table label="Course material">
             <thead>
-              <tr className="border-b border-chalkboard-border text-left">
-                <th className="pb-3 pr-4 text-label-sm text-on-surface-variant uppercase font-medium">
-                  File
-                </th>
-                <th className="pb-3 pr-4 text-label-sm text-on-surface-variant uppercase font-medium w-20">
-                  Type
-                </th>
-                <th className="pb-3 pr-4 text-label-sm text-on-surface-variant uppercase font-medium">
-                  Description
-                </th>
-                <th className="pb-3 pr-4 text-label-sm text-on-surface-variant uppercase font-medium w-24 text-right">
-                  Sections
-                </th>
-                <th className="pb-3 w-10">
-                  <span className="sr-only">Remove</span>
-                </th>
+              <tr>
+                <Th>File</Th>
+                <Th>Type</Th>
+                <Th>Description</Th>
+                <Th className="w-24">
+                  <span className="sr-only">Actions</span>
+                </Th>
               </tr>
             </thead>
 
             <tbody>
               {materials.map((m) => {
-                const isEditing = editing === m.source;
+                const isEditing = editing === keyOf(m);
+                const busy = deleting === keyOf(m);
 
                 return (
-                  <tr
-                    key={m.source}
-                    className="border-b border-chalkboard-border/60 align-top"
-                  >
-                    <td className="py-3 pr-4">
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="material-symbols-outlined text-primary text-[20px] shrink-0">
-                          {iconFor(m.source)}
-                        </span>
-                        <span
-                          className="text-body-md text-on-surface truncate"
-                          title={m.source}
-                        >
+                  <tr key={keyOf(m)}>
+                    <Td>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <FileText
+                          className="size-[18px] shrink-0 text-ink-2"
+                          aria-hidden
+                        />
+                        <span className="truncate font-medium" title={m.source}>
                           {m.source}
                         </span>
                       </div>
-                    </td>
+                    </Td>
 
-                    <td className="py-3 pr-4">
-                      <span className="px-2 py-0.5 bg-academy-blue-light text-primary rounded-full text-label-sm">
-                        {fileTypeOf(m.source)}
-                      </span>
-                    </td>
+                    <Td>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <Tag>{fileTypeOf(m.source)}</Tag>
+                        <Tag tone={m.visibility === "class" ? "mark" : "neutral"}>
+                          {m.visibility === "class" ? "Shared" : "Private"}
+                        </Tag>
+                      </div>
+                    </Td>
 
-                    <td className="py-3 pr-4">
+                    <Td className="min-w-48">
                       {isEditing ? (
-                        <div className="flex items-center gap-2">
-                          <input
+                        <div className="flex items-center gap-1">
+                          <TextInput
                             autoFocus
+                            aria-label={`Description of ${m.source}`}
                             value={draft}
                             onChange={(e) => setDraft(e.target.value)}
                             onKeyDown={(e) => {
-                              if (e.key === "Enter") save(m.source);
+                              if (e.key === "Enter") save(m);
                               if (e.key === "Escape") setEditing(null);
                             }}
                             maxLength={140}
                             placeholder="What is this file?"
-                            className="flex-1 min-w-0 border border-chalkboard-border rounded-lg px-3 py-1.5 text-body-md focus:outline-none focus:border-primary"
+                            className="h-9"
                           />
-                          <button
-                            onClick={() => save(m.source)}
+                          <IconButton
+                            icon={Check}
+                            label="Save description"
                             disabled={saving}
-                            title="Save"
-                            className="text-primary p-1 rounded-full hover:bg-surface-container disabled:opacity-40"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">
-                              {saving ? "hourglass_top" : "check"}
-                            </span>
-                          </button>
-                          <button
+                            onClick={() => save(m)}
+                          />
+                          <IconButton
+                            icon={X}
+                            label="Cancel"
+                            disabled={saving}
                             onClick={() => setEditing(null)}
-                            disabled={saving}
-                            title="Cancel"
-                            className="text-on-surface-variant p-1 rounded-full hover:bg-surface-container disabled:opacity-40"
-                          >
-                            <span className="material-symbols-outlined text-[20px]">
-                              close
-                            </span>
-                          </button>
+                          />
                         </div>
                       ) : (
-                        <button
-                          onClick={() => beginEdit(m)}
-                          title="Click to edit"
-                          className="group flex items-start gap-2 text-left w-full"
+                        <span
+                          className={m.description ? "text-ink-2" : "text-ink-3"}
                         >
-                          <span
-                            className={`text-body-md ${
-                              m.description
-                                ? "text-on-surface-variant"
-                                : "text-outline italic"
-                            }`}
-                          >
-                            {m.description || "Add a description"}
-                          </span>
-                          <span className="material-symbols-outlined text-[16px] text-outline opacity-0 group-hover:opacity-100 transition-opacity shrink-0 mt-0.5">
-                            edit
-                          </span>
-                        </button>
-                      )}
-                    </td>
-
-                    <td className="py-3 pr-4 text-body-md text-on-surface-variant text-right tabular-nums">
-                      {m.chunks}
-                    </td>
-
-                    <td className="py-3 text-right">
-                      <button
-                        onClick={() => setConfirmingDelete(m.source)}
-                        disabled={deleting === m.source}
-                        title="Remove this file"
-                        className="p-1 rounded-full text-on-surface-variant hover:bg-error-container hover:text-error transition-colors disabled:opacity-40"
-                      >
-                        <span className="material-symbols-outlined text-[20px]">
-                          {deleting === m.source ? "hourglass_top" : "delete"}
+                          {m.description ||
+                            (m.can_edit ? "No description yet" : "No description")}
                         </span>
-                      </button>
-                    </td>
+                      )}
+                    </Td>
+
+                    <Td align="right">
+                      {m.can_edit && !isEditing && (
+                        <div className="flex justify-end gap-0.5">
+                          <IconButton
+                            icon={Pencil}
+                            label={`Edit description of ${m.source}`}
+                            onClick={() => beginEdit(m)}
+                          />
+                          <IconButton
+                            icon={Trash2}
+                            label={`Remove ${m.source}`}
+                            disabled={busy}
+                            onClick={() => setConfirmingDelete(m)}
+                            className="hover:bg-red-soft hover:text-red"
+                          />
+                        </div>
+                      )}
+                    </Td>
                   </tr>
                 );
               })}
-
-              {confirmingDelete && (
-                <tr>
-                  <td colSpan={5} className="pt-4">
-                    <div className="rounded-xl border border-error/40 bg-error-container/40 p-4 flex items-center justify-between gap-4 flex-wrap">
-                      <p className="text-body-md text-on-surface-variant">
-                        Remove <strong>{confirmingDelete}</strong> from{" "}
-                        {courseId}? Everything indexed from it is deleted and
-                        this cannot be undone.
-                      </p>
-                      <div className="flex gap-2 shrink-0">
-                        <button
-                          onClick={() => setConfirmingDelete(null)}
-                          className="px-4 py-2 rounded-full text-title-md text-on-surface-variant hover:bg-surface-container transition-colors"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={() => remove(confirmingDelete)}
-                          disabled={deleting !== null}
-                          className="px-4 py-2 rounded-full bg-error text-on-primary text-title-md hover:opacity-90 transition-opacity disabled:opacity-40"
-                        >
-                          {deleting ? "Removing…" : "Remove"}
-                        </button>
-                      </div>
-                    </div>
-                  </td>
-                </tr>
-              )}
             </tbody>
-          </table>
+          </Table>
+
+          {confirmingDelete && (
+            <div className="border-t border-rule bg-red-soft/60 px-5 py-4 md:px-6">
+              <p className="text-body text-ink">
+                Remove <strong>{confirmingDelete.source}</strong> from{" "}
+                {courseId}? It will be deleted for good.
+              </p>
+              <div className="mt-3 flex gap-2">
+                <Button
+                  variant="danger"
+                  size="sm"
+                  loading={deleting !== null}
+                  onClick={() => remove(confirmingDelete)}
+                >
+                  Remove file
+                </Button>
+                <Button
+                  size="sm"
+                  disabled={deleting !== null}
+                  onClick={() => setConfirmingDelete(null)}
+                >
+                  Keep it
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       )}
-    </div>
+    </Panel>
   );
 }
