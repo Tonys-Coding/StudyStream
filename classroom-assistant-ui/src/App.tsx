@@ -3,7 +3,8 @@ import Layout from "@/components/Layout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AuthPage from "@/pages/AuthPage";
 import WorkspaceView from "@/pages/WorkspaceView";
-import DashboardPlaceholder from "@/pages/DashboardView";
+import DashboardView from "@/pages/DashboardView";
+import TeachersView from "@/pages/TeachersView";
 
 function App() {
   return (
@@ -13,7 +14,8 @@ function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/" element={<Layout />}>
           <Route index element={<WorkspaceView />} />
-          <Route path="dashboard" element={<DashboardPlaceholder />} />
+          <Route path="dashboard" element={<DashboardView />} />
+          <Route path="teachers" element={<TeachersView />} />
 
           {/* The per-agent pages are now tabs inside the workspace */}
           <Route path="study" element={<Navigate to="/" replace />} />
