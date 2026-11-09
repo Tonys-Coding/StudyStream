@@ -1,14 +1,49 @@
-import { useState } from "react";
-import type { QuizResponse } from "@/lib/api";
+import { useRef, useState } from "react";
+import { Check, ClipboardCheck, X } from "lucide-react";
+import { recordQuiz, type QuizResponse } from "@/lib/api";
+import Button from "@/components/ui/Button";
+import Notice from "@/components/ui/Notice";
+import Panel from "@/components/ui/Panel";
+import { cn } from "@/lib/utils";
+import SourceList from "./SourceList";
 
-export default function QuizPanel({ data }: { data: QuizResponse }) {
+interface Props {
+  data: QuizResponse;
+  courseId: string;
+  /** What the student asked, saved with the result. */
+  topic: string;
+}
+
+const LETTERS = ["A", "B", "C", "D"];
+
+export default function QuizPanel({ data, courseId, topic }: Props) {
   // Which question index -> which choice the student picked
   const [picked, setPicked] = useState<Record<number, string>>({});
+  const pickedRef = useRef<Record<number, string>>({});
   const [revealed, setRevealed] = useState<Set<number>>(new Set());
+  const [saveState, setSaveState] = useState<"idle" | "saved" | "failed">(
+    "idle",
+  );
 
   function choose(questionIndex: number, choice: string) {
-    setPicked((prev) => ({ ...prev, [questionIndex]: choice }));
+    // Built from the latest picks, so two answers in quick succession both count.
+    const next = { ...pickedRef.current, [questionIndex]: choice };
+
+    pickedRef.current = next;
+    setPicked(next);
     setRevealed((prev) => new Set(prev).add(questionIndex));
+
+    // The last answer finishes the quiz: save the score so it shows up on
+    // the Dashboard. Peeking with "Show answer" does not count as answering.
+    if (Object.keys(next).length === data.questions.length) {
+      const score = data.questions.filter(
+        (q, i) => next[i] === q.answer,
+      ).length;
+
+      recordQuiz(courseId, topic, score, data.questions.length)
+        .then(() => setSaveState("saved"))
+        .catch(() => setSaveState("failed"));
+    }
   }
 
   const answered = Object.keys(picked).length;
@@ -17,105 +52,146 @@ export default function QuizPanel({ data }: { data: QuizResponse }) {
   ).length;
 
   return (
-    <>
-      <div className="paper-card rounded-xl p-8 mb-8">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined filled text-primary text-[28px]">
-              assignment
+    <Panel
+      title="Practice quiz"
+      icon={ClipboardCheck}
+      subtitle={`${data.questions.length} questions`}
+      actions={
+        <p className="tnum text-body font-medium text-ink" aria-live="polite">
+          {correct} of {data.questions.length} correct
+          {answered < data.questions.length && (
+            <span className="font-normal text-ink-2">
+              {" "}
+              · {answered} answered
             </span>
-            <h2 className="font-headline-lg text-headline-lg text-on-surface">
-              Practice Questions
-            </h2>
-          </div>
-
-          <div className="bg-academy-blue-light rounded-xl px-5 py-2">
-            <p className="text-label-sm text-on-surface-variant uppercase">
-              Score
-            </p>
-            <p className="font-title-md text-title-md text-primary">
-              {correct} / {data.questions.length}
-              {answered < data.questions.length && (
-                <span className="text-on-surface-variant">
-                  {" "}
-                  ({answered} answered)
-                </span>
-              )}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4">
+          )}
+        </p>
+      }
+    >
+      <ol className="divide-y divide-rule">
         {data.questions.map((q, i) => {
           const showing = revealed.has(i);
           const choice = picked[i];
 
           return (
-            <div key={i} className="paper-card rounded-xl p-6">
-              <div className="flex gap-4 mb-4">
-                <span className="bg-primary text-on-primary text-label-sm font-medium rounded-full w-7 h-7 flex items-center justify-center shrink-0">
+            <li key={i} className="py-6 first:pt-0 last:pb-0">
+              <div className="mb-4 grid grid-cols-[2.25rem_1fr] gap-3">
+                <span className="tnum font-serif text-h2 leading-none text-ink-3">
                   {i + 1}
                 </span>
-                <p className="font-body-notebook text-body-notebook text-on-surface leading-relaxed">
-                  {q.question}
-                </p>
+                <p className="prose-read text-ink">{q.question}</p>
               </div>
 
-              <div className="space-y-2 ml-11">
-                {q.choices.map((option) => {
+              <div
+                role="group"
+                aria-label={`Choices for question ${i + 1}`}
+                className="space-y-2 sm:pl-12"
+              >
+                {q.choices.map((option, n) => {
                   const isAnswer = option === q.answer;
                   const isPicked = option === choice;
 
-                  let tone =
-                    "border-chalkboard-border hover:border-primary hover:bg-surface-container-low";
-
-                  if (showing && isAnswer) {
-                    tone = "border-primary bg-academy-blue-light text-primary";
-                  } else if (showing && isPicked && !isAnswer) {
-                    tone =
-                      "border-error bg-error-container/50 text-on-error-container";
-                  } else if (showing) {
-                    tone = "border-chalkboard-border opacity-60";
-                  }
+                  const state = !showing
+                    ? "open"
+                    : isAnswer
+                      ? "right"
+                      : isPicked
+                        ? "wrong"
+                        : "rest";
 
                   return (
                     <button
                       key={option}
                       disabled={showing}
                       onClick={() => choose(i, option)}
-                      className={`w-full text-left text-body-md rounded-xl px-4 py-2.5 border transition-colors flex items-center gap-3 ${tone}`}
+                      className={cn(
+                        "flex w-full items-start gap-3 rounded-ctl border px-3.5 py-2.5 text-left text-body transition-colors duration-150",
+                        state === "open" &&
+                          "border-line bg-sheet text-ink hover:bg-sheet-2",
+                        state === "right" && "border-ok bg-ok-soft text-ink",
+                        state === "wrong" && "border-red bg-red-soft text-ink",
+                        state === "rest" &&
+                          "border-rule bg-sheet text-ink-2 opacity-70",
+                      )}
                     >
-                      {showing && isAnswer && (
-                        <span className="material-symbols-outlined text-[20px]">
-                          check_circle
-                        </span>
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "mt-px flex size-6 shrink-0 items-center justify-center rounded-tag border text-meta font-semibold",
+                          state === "right" && "border-ok bg-ok text-white",
+                          state === "wrong" && "border-red bg-red text-white",
+                          (state === "open" || state === "rest") &&
+                            "border-line text-ink-2",
+                        )}
+                      >
+                        {state === "right" ? (
+                          <Check className="size-4" />
+                        ) : state === "wrong" ? (
+                          <X className="size-4" />
+                        ) : (
+                          LETTERS[n]
+                        )}
+                      </span>
+                      <span className="min-w-0 flex-1">{option}</span>
+                      {state === "right" && (
+                        <span className="sr-only">Correct answer</span>
                       )}
-                      {showing && isPicked && !isAnswer && (
-                        <span className="material-symbols-outlined text-[20px]">
-                          cancel
-                        </span>
+                      {state === "wrong" && (
+                        <span className="sr-only">Your answer, incorrect</span>
                       )}
-                      <span>{option}</span>
                     </button>
                   );
                 })}
               </div>
 
-              {!showing && (
-                <button
-                  onClick={() =>
-                    setRevealed((prev) => new Set(prev).add(i))
-                  }
-                  className="ml-11 mt-3 text-label-sm text-primary font-medium"
+              {showing && (
+                <p
+                  role="status"
+                  className={cn(
+                    "mt-3 text-ui font-medium sm:pl-12",
+                    choice === undefined || choice !== q.answer
+                      ? "text-red"
+                      : "text-ok",
+                  )}
                 >
-                  Show answer
-                </button>
+                  {choice === q.answer
+                    ? "Correct. "
+                    : choice === undefined
+                      ? `The answer is "${q.answer}". `
+                      : `Not quite. The answer is "${q.answer}". `}
+                  {q.explanation}
+                </p>
               )}
-            </div>
+
+              {!showing && (
+                <div className="mt-3 sm:pl-12">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setRevealed((prev) => new Set(prev).add(i))}
+                  >
+                    Show answer
+                  </Button>
+                </div>
+              )}
+            </li>
           );
         })}
-      </div>
-    </>
+      </ol>
+
+      {saveState === "saved" && (
+        <Notice tone="ok" className="mt-6">
+          Finished. {correct} of {data.questions.length} correct, saved to your
+          Dashboard.
+        </Notice>
+      )}
+      {saveState === "failed" && (
+        <Notice tone="error" className="mt-6">
+          Could not save this result to your Dashboard.
+        </Notice>
+      )}
+
+      <SourceList sources={data.sources} label="Written from" />
+    </Panel>
   );
 }
