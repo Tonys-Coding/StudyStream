@@ -1,131 +1,257 @@
 @import "tailwindcss";
+@import "@fontsource-variable/atkinson-hyperlegible-next";
+@import "@fontsource-variable/literata";
+
+/*
+  StudyStream design tokens. DESIGN.md explains the thinking; this file is the
+  one place the values live, so a re-theme is an edit here and nowhere else.
+
+  The world is a study hall: a chalkboard-green rail beside warm paper, with a
+  coral chalk for whatever is selected and a red pen for what is wrong.
+*/
 
 @theme {
-  /* --- Colour ------------------------------------------------------ */
-  --color-primary: #005bbf;
-  --color-on-primary: #ffffff;
-  --color-on-primary-fixed-variant: #004493;
-  --color-primary-light: #e8f0fe;
-  --color-academy-blue-light: #e8f0fe;
+  /* --- Colour: the rail (chalkboard) --------------------------------- */
+  --color-board: #154734; /* UTD green */
+  --color-board-2: #1f5a43;
+  --color-board-3: #34705a;
+  --color-chalk: #f1ede0;
+  --color-chalk-2: #bbc8bc;
 
-  --color-secondary: #805600;
-  --color-scholar-gold-muted: #fff8e1;
+  /* --- Colour: the work surface (paper) ------------------------------ */
+  --color-paper: #f5f0e4;
+  --color-sheet: #fffdf8;
+  --color-sheet-2: #efe9d9;
+  --color-rule: #d8cfb8;
+  --color-line: #8c846c; /* control borders: 3.7:1 on a sheet */
 
-  --color-background: #f7fafd;
-  --color-surface: #ffffff;
-  --color-surface-container: #ebeef2;
-  --color-surface-container-low: #f1f4f7;
-  --color-surface-container-high: #e5e8ec;
+  /* --- Colour: ink --------------------------------------------------- */
+  --color-ink: #1d2420;
+  --color-ink-2: #4b544b;
+  --color-ink-3: #646b60;
 
-  --color-on-surface: #181c1f;
-  --color-on-surface-variant: #414754;
-  --color-outline: #727785;
+  /* --- Colour: marks. Each one means one thing ----------------------- */
+  --color-hl: #e87500; /* UTD orange: what is selected or key */
+  --color-hl-soft: #fde8d2;
+  --color-hl-wash: #fcd3a6; /* light orange: marker behind running text */
+  --color-amber: #e87500; /* the logo's stream; the same chalk, as a stroke */
+  --color-red: #ae2a20; /* red pen: wrong, destructive, error */
+  --color-red-soft: #f8e0db;
+  --color-ok: #2b6a3c; /* correct */
+  --color-ok-soft: #dcebdb;
+  --color-blue: #245189; /* fountain pen: focus ring, links */
 
-  --color-chalkboard-border: #dadce0;
-  --color-border: #dadce0;
+  /* --- Type: reading is serif, doing is sans ------------------------- */
+  --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif,
+    system-ui, sans-serif;
+  --font-serif: "Literata Variable", Georgia, "Times New Roman", serif;
 
-  --color-error: #ba1a1a;
-  --color-error-container: #ffdad6;
-  --color-on-error-container: #93000a;
+  /* Fixed rem scale at roughly 1.2. Product screens are viewed at a steady
+     size, so nothing here is fluid. */
+  --text-meta: 0.8125rem;
+  --text-meta--line-height: 1.125rem;
+  --text-ui: 0.9375rem;
+  --text-ui--line-height: 1.375rem;
+  --text-body: 1rem;
+  --text-body--line-height: 1.5rem;
+  --text-read: 1.125rem;
+  --text-read--line-height: 1.8rem;
+  --text-h3: 1.25rem;
+  --text-h3--line-height: 1.75rem;
+  --text-h2: 1.625rem;
+  --text-h2--line-height: 2.125rem;
+  --text-h1: 2rem;
+  --text-h1--line-height: 2.5rem;
+  --text-display: 2.75rem;
+  --text-display--line-height: 3.125rem;
 
-  /* shadcn component tokens. Its generated components reference these
-     names; without them the classes compile to nothing and the component
-     renders unstyled. Mapped onto the palette above. */
-  --color-foreground: #181c1f;
-  --color-primary-foreground: #ffffff;
-  --color-secondary-foreground: #ffffff;
-  --color-muted: #ebeef2;
-  --color-muted-foreground: #414754;
-  --color-accent: #e8f0fe;
-  --color-input: #dadce0;
-  --color-ring: #005bbf;
-  --color-destructive: #ba1a1a;
+  /* --- Shape --------------------------------------------------------- */
+  --radius-tag: 999px;
+  --radius-ctl: 10px;
+  --radius-panel: 14px;
 
-  /* --- Type: families ---------------------------------------------- */
-  --font-display-lg: "Montserrat", sans-serif;
-  --font-headline-lg: "Montserrat", sans-serif;
-  --font-title-md: "Inter", sans-serif;
-  --font-body-md: "Inter", sans-serif;
-  --font-label-sm: "Inter", sans-serif;
-  --font-body-notebook: "Source Serif 4", serif;
+  --shadow-pop: 0 10px 28px -8px rgb(29 36 32 / 0.28),
+    0 2px 6px rgb(29 36 32 / 0.12);
 
-  /* Kept so the pre-existing pages keep their styling */
-  --font-display: "Montserrat", sans-serif;
-  --font-body: "Inter", sans-serif;
-  --font-notebook: "Source Serif 4", serif;
-
-  /* --- Type: scale -------------------------------------------------- */
-  --text-display-lg: 48px;
-  --text-display-lg--line-height: 56px;
-  --text-display-lg--letter-spacing: -0.02em;
-  --text-display-lg--font-weight: 700;
-
-  --text-headline-lg: 32px;
-  --text-headline-lg--line-height: 40px;
-  --text-headline-lg--font-weight: 600;
-
-  --text-headline-lg-mobile: 24px;
-  --text-headline-lg-mobile--line-height: 32px;
-  --text-headline-lg-mobile--font-weight: 600;
-
-  --text-title-md: 18px;
-  --text-title-md--line-height: 24px;
-  --text-title-md--font-weight: 600;
-
-  --text-body-md: 16px;
-  --text-body-md--line-height: 24px;
-  --text-body-md--font-weight: 400;
-
-  --text-body-notebook: 18px;
-  --text-body-notebook--line-height: 30px;
-  --text-body-notebook--font-weight: 400;
-
-  --text-label-sm: 12px;
-  --text-label-sm--line-height: 16px;
-  --text-label-sm--letter-spacing: 0.05em;
-  --text-label-sm--font-weight: 500;
-
-  /* --- Spacing ------------------------------------------------------ */
-  --spacing-margin-desktop: 40px;
-  --spacing-margin-mobile: 16px;
-  --spacing-gutter: 24px;
-
-  /* --- Radius ------------------------------------------------------- */
-  --radius-lg: 0.5rem;
-  --radius-xl: 0.75rem;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-body {
-  background-color: var(--color-background);
-  color: var(--color-on-surface);
-  font-family: var(--font-body-md);
+
+/* ------------------------------------------------------------------ */
+/* Base                                                               */
+/* ------------------------------------------------------------------ */
+
+@layer base {
+  /* The app fills the window and scrolls inside its panes, so the page
+     itself never scrolls or bounces past the bottom. */
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background: var(--color-paper);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    font-size: var(--text-body);
+    line-height: var(--text-body--line-height);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-serif);
+    font-weight: 600;
+    text-wrap: balance;
+  }
+
+  p,
+  li {
+    text-wrap: pretty;
+  }
+
+  /* One focus ring everywhere, in the fountain-pen blue. */
+  :focus-visible {
+    outline: 2px solid var(--color-blue);
+    outline-offset: 2px;
+  }
+
+  /* Browser surfaces the design does not draw still belong to it. */
+  ::selection {
+    background: var(--color-hl);
+    color: var(--color-ink);
+  }
+
+  input,
+  textarea,
+  select {
+    caret-color: var(--color-blue);
+    font: inherit;
+  }
+
+  ::placeholder {
+    color: var(--color-ink-3);
+    opacity: 1;
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-line) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-line);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 999px;
+  }
+
+  th,
+  td,
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
 
-/* Frosted sidebar and top bar */
-.glass-panel {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(12px);
+
+/* ------------------------------------------------------------------ */
+/* The highlighter                                                    */
+/*                                                                    */
+/* The one signature of the design: whatever is selected or important */
+/* is marked the way you would mark a page with a highlighter. It is  */
+/* used for the current subject, the current tab, the current page,   */
+/* and a plan's focus topics, and for nothing else.                   */
+/* ------------------------------------------------------------------ */
+
+@utility hl {
+  /* Inline: a marker wash behind the whole run of text, top of the
+     letters to the bottom of the descenders. */
+  background: var(--color-hl-wash);
+  border-radius: 0.15em;
+  padding: 0.04em 0.25em;
+  margin: 0 -0.25em;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
-/* Content cards: faint paper grain, lifts on hover */
-.paper-card {
-  background-color: #ffffff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  border: 1px solid #dadce0;
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
+@utility hl-block {
+  /* The same marker on a dark surface, where a half-height stroke would
+     leave the top of the letters dark on dark. Full height, ink text. */
+  background: var(--color-hl);
+  color: var(--color-ink);
+  padding: 0 0.2em;
+  border-radius: 3px;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
 }
 
-.paper-card-interactive:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  border-color: #005bbf;
-  transition: all 0.2s ease-in-out;
+@keyframes swipe {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
 }
 
-.material-symbols-outlined {
-  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
-  user-select: none;
+/* The marker drawn across a selected row or tab. It is the app's one
+   authored motion, and it only runs when selection changes. */
+@utility swipe {
+  transform-origin: left center;
+  animation: swipe 220ms var(--ease-out-expo) both;
 }
 
-.material-symbols-outlined.filled {
-  font-variation-settings: "FILL" 1;
+/* Reading text: a measure a person can follow, in the serif. */
+@utility prose-read {
+  font-family: var(--font-serif);
+  font-size: var(--text-read);
+  line-height: var(--text-read--line-height);
+  max-width: 68ch;
+}
+
+
+/* The sign-in hero: the stream is drawn out behind the pencil once. */
+@keyframes draw-stream {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.logo-draw .logo-stream {
+  stroke-dasharray: 1;
+  animation: draw-stream 1.2s 0.15s var(--ease-out-expo) both;
+}
+
+/* Wavy chalk lines, drawn from the same curve as the logo's stream. Two rows
+   per tile, the second shifted half a tile, so they read as water. */
+@utility ruled {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='96' viewBox='0 0 160 96' fill='none' stroke='%23f1ede0' stroke-opacity='.06' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='M0 24C26.7 4 53.3 4 80 24S133.3 44 160 24'/%3E%3Cpath d='M-80 72C-53.3 52 -26.7 52 0 72S53.3 92 80 72'/%3E%3Cpath d='M80 72C106.7 52 133.3 52 160 72S213.3 92 240 72'/%3E%3C/svg%3E");
+  background-size: 160px 96px;
 }
