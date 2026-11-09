@@ -131,6 +131,10 @@ cp .env orchestrator-work/.env
 
 Use the Supabase **service_role** key here, not the anon key.
 
+Also set `TEACHER_INVITE_CODE`. Teachers and TAs can share material with a
+whole class, so signing up as one asks for this code, which you hand out
+yourself. Leave it unset and nobody can claim those roles.
+
 [`DATABASE_SETUP.md`](DATABASE_SETUP.md) walks through creating your own
 Supabase project from scratch — you do not need access to ours.
 
@@ -148,6 +152,12 @@ VITE_API_BASE_URL=http://127.0.0.1:8001
 The frontend uses the **anon** key, because it runs in the browser.
 
 ### 4. Database
+
+After the schema below, run [`DATABASE_MIGRATION.sql`](DATABASE_MIGRATION.sql)
+once in the Supabase SQL editor. It adds the `courses`, `enrollments` and
+`activity` tables that hold each student's subject list and the Dashboard's
+numbers. Until it is run, the app starts but subjects and the Dashboard
+answer with a message telling you to.
 
 **Using your own Supabase project?** Follow
 [`DATABASE_SETUP.md`](DATABASE_SETUP.md) — it has the complete schema as one
@@ -277,19 +287,56 @@ development, or confirm the email and log in.
 
 ---
 
+## Design
+
+The look is a study hall: a chalkboard-green rail, warm paper, a coral
+highlighter for whatever is selected. [`DESIGN.md`](DESIGN.md) records the
+tokens, the components and the rules, so a new screen matches the rest. The
+logo is `classroom-assistant-ui/public/logo.svg`.
+
+---
+
 ## Current state
 
 Working end to end:
 
-- Supabase auth, verified at the orchestrator
-- Multi-agent fan-out with a generated overview
-- RAG retrieval over uploaded material for study plans and FAQ
-- Course material upload, listing, description, and removal
-- User-managed subject list
+- Supabase auth, verified at the orchestrator, with a profile step that
+  recovers if sign-up is interrupted
+- Multi-agent fan-out with a generated overview. If Azure fails while picking
+  agents or writing the overview, the agents' results still come back.
+- RAG retrieval over uploaded material for study plans, FAQ **and quizzes**.
+  Every answer lists the files it came from.
+- Per-user material: a student's uploads are private to them, a teacher's or
+  TA's are shared with the class
+- Course material upload (batched, replaces a re-uploaded file instead of
+  duplicating it), listing, description, and removal
+- Subjects stored in the database, so they follow a student between browsers
+- Dashboard: questions asked, finished quizzes and scores per subject, and
+  class-wide totals for teachers and TAs
+- Quiz output is checked before it is shown: four distinct choices and an
+  answer that is one of them
+- Works on a phone: the sidebar becomes a drawer
 
 Not done yet:
 
-- The Assessment agent still uses hardcoded topics rather than RAG
-- Per-user material visibility — uploads are course-wide
-- Student history, progress tracking, instructor analytics
-- The dashboard is a placeholder
+- Individual student reports for instructors (the Dashboard shows class
+  totals only, by design)
+- Rate limiting per user
+- Scanned PDFs: there is no OCR, so an image-only PDF is rejected as empty
+
+
+## Roles
+
+| | Student | TA | Teacher |
+|---|---|---|---|
+| Sign up | Anyone | Invite code | Invite code |
+| Ask questions, quizzes, study plans, assignments | Yes | Yes | Yes |
+| Upload files | Private to them | Shared with the class | Shared with the class |
+| Edit or delete class files | No | Yes | Yes |
+| Create a subject | Private only | Private only | Private or **Public** |
+| Enter a teacher code (see that teacher's Shared subjects) | Yes | Yes | No |
+| Own teacher code to hand out | No | No | Yes (**Your class** page) |
+| Class totals on the Dashboard | No | No | Yes |
+
+A **public** subject is visible only to people who entered its teacher's code,
+and shows under **Shared** in their sidebar. Unlinking removes it again.
