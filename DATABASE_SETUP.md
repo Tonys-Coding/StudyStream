@@ -129,6 +129,14 @@ alter table profiles enable row level security;
 > different embedding model, change this number to that model's dimension or
 > every insert will fail.
 
+### Step 2b — Run the migration
+
+Still in the SQL editor, paste the contents of
+[`DATABASE_MIGRATION.sql`](DATABASE_MIGRATION.sql) and run it once. It adds
+three tables: `courses` (the subject catalogue), `enrollments` (which subjects
+each user has added) and `activity` (questions and quiz scores for the
+Dashboard). It is safe to run again, and it changes nothing that exists.
+
 ---
 
 ## Step 3 — Turn off email confirmation
